@@ -1,0 +1,25 @@
+[package]
+name = "fzrs"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+
+[features]
+simd = []
+
+[dev-dependencies]
+criterion = "0.4"
+nucleo-matcher = "0.3.1"
+
+[[bench]]
+name = "lib"
+harness = false
+
+[dependencies]
+# arrayvec = "0.7.4"
+# count_sort = "0.3.0"
+memchr = "2.7.4"
+# radsort = "0.1.0"
+smith_waterman_macro = { path = "./smith_waterman_macro" }
