@@ -100,7 +100,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                     let diag_score = match_mask.select(
                         diag + match_score
                             + is_delimiter_masks[j - 1].select(delimiter_bonus, zero)
-                            + capital_mask.select(capitalization_bonus, zero),
+                            + capital_mask.bitand(Mask::splat(j != 1)).select(capitalization_bonus, zero),
                         diag.simd_gt(mismatch_score)
                             .select(diag - mismatch_score, zero),
                     );
