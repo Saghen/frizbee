@@ -1,8 +1,10 @@
 #![feature(portable_simd)]
 
+extern crate memchr;
+
 mod bucket;
+pub mod r#const;
 mod prefilter;
-mod reference;
 pub mod simd;
 
 use bucket::Bucket;
@@ -148,57 +150,3 @@ impl Default for Options {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[test]
-    fn test_smith_waterman() {
-        let matches = match_list("prnt", &["print"], Options::default());
-        assert_eq!(matches[0].score, 5);
-
-        let matches = match_list(
-            "banny mtero",
-            &["benjamin blue fucks danny montero"],
-            Options::default(),
-        );
-        assert_eq!(matches[0].score, 8);
-    }
-
-    //#[test]
-    //fn test_single() {
-    //    let query = "banny mtero";
-    //    let target = "benjamin blue fucks danny montero";
-    //    let (score, _score_matrix) = smith_waterman_reference(query.as_bytes(), target.as_bytes());
-    //    println!("Score: {}", score);
-    //
-    //    let scores = smith_waterman(query, &[target], false);
-    //    println!("Score: {}", scores[0].1);
-    //}
-}
-
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    #[test]
-//    fn test_indices_from_scores() {
-//        let query = "prnt";
-//        let targets = [
-//            "print", "println", "prelude", "println!", "prefetch", "prefix", "prefix!", "print!",
-//        ];
-//
-//        let scores = smith_waterman(query, &targets, Options::default());
-//        let indices = char_indices_from_scores(&scores);
-//
-//        for (i, indices) in indices.iter().enumerate() {
-//            let target = targets[i];
-//            println!("\n\nTarget: {}", target);
-//
-//            for idx in indices {
-//                println!("{}", idx);
-//            }
-//        }
-//    }
-//}

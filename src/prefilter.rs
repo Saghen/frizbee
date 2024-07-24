@@ -1,4 +1,4 @@
-use ::memchr::{memchr, memrchr};
+use memchr::{memchr, memrchr};
 
 /// Ripped directly from nucleo-matcher. It makes the algo much faster but also misses many
 /// good matches

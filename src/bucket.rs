@@ -1,3 +1,4 @@
+use crate::r#const::SIMD_WIDTH;
 use crate::simd::*;
 use crate::Match;
 
@@ -43,15 +44,11 @@ impl<'a> Bucket<'a> {
         self.length += 1;
     }
 
-    pub fn haystack_len(&self) -> usize {
-        self.haystacks.iter().map(|x| x.len()).max().unwrap()
-    }
-
     pub fn is_full(&self) -> bool {
         self.length == SIMD_WIDTH
     }
 
-    pub fn process(&mut self, scores: &mut [Match], needle: &str, with_indices: bool) {
+    pub fn process(&mut self, scores: &mut [Match], needle: &str, _with_indices: bool) {
         if self.length == 0 {
             return;
         }
