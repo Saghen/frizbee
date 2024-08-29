@@ -13,6 +13,9 @@ use std::cmp::Reverse;
 
 #[derive(Debug, Clone, Default)]
 pub struct Match {
+    /** Index of the match in the original list of haystacks */
+    pub index_in_haystack: usize,
+    /** Index of the match in the returned list of matches */
     pub index: usize,
     pub score: u16,
     pub indices: Option<Vec<usize>>,
@@ -28,6 +31,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             .iter()
             .enumerate()
             .map(|(i, _)| Match {
+                index_in_haystack: i,
                 index: i,
                 score: 0,
                 indices: None,
@@ -114,6 +118,16 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
 
     if opts.min_score > 0 {
         matches.retain(|mtch| mtch.score >= opts.min_score);
+        matches = matches
+            .into_iter()
+            .enumerate()
+            .map(|(i, mtch)| Match {
+                index_in_haystack: mtch.index_in_haystack,
+                index: i,
+                score: mtch.score,
+                indices: mtch.indices,
+            })
+            .collect();
     }
     if opts.stable_sort {
         matches.sort_by_key(|mtch| Reverse(mtch.score));
@@ -146,7 +160,7 @@ impl Default for Options {
             prefilter: false,
             stable_sort: true,
             unstable_sort: false,
-            min_score: 2,
+            min_score: 0,
         }
     }
 }

@@ -72,6 +72,7 @@ impl<'a> Bucket<'a> {
         for idx in 0..self.length {
             let score_idx = self.idxs[idx];
             scores[score_idx] = Match {
+                index_in_haystack: score_idx,
                 index: score_idx,
                 score: bucket_scores[idx],
                 indices: None, //indices: bucket_indices.get(idx).cloned(),
