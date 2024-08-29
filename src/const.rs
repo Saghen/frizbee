@@ -15,7 +15,7 @@ pub const GAP_OPEN_PENALTY: u8 = 2; // -2
 pub const GAP_EXTEND_PENALTY: u8 = 1; // -1
 
 // bonus for matching the first character of the haystack
-pub const PREFIX_BONUS: u8 = 4;
+pub const PREFIX_BONUS: u8 = 2;
 // bonus for matching character after a delimiter in the haystack (e.g. space, comma, underscore, slash, etc)
 pub const DELIMITER_BONUS: u8 = 1;
 // bonus for matching a letter that is capitalized on the haystack
