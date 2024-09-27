@@ -9,7 +9,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
         .base10_parse::<usize>()
         .unwrap();
     let width_with_padding = width + 1;
-    let score_type = if width > 48 { quote!(u16) } else { quote!(u8) };
+    let score_type = if width > 24 { quote!(u16) } else { quote!(u8) };
 
     let function_name = Ident::new(
         &format!("smith_waterman_inter_simd_{}", width),
