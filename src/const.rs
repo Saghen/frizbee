@@ -18,7 +18,9 @@ pub const GAP_EXTEND_PENALTY: u8 = 1; // -1
 pub const PREFIX_BONUS: u8 = 4;
 // bonus for matching character after a delimiter in the haystack (e.g. space, comma, underscore, slash, etc)
 pub const DELIMITER_BONUS: u8 = 2;
-// bonus for matching a letter that is capitalized on the haystack
-pub const CAPITALIZATION_BONUS: u8 = 2;
+// bonus for matching a letter that is capitalized on the haystackA
+// FIXME: temporarily disabled until we can apply only when the char before the capital is
+// lowercase
+pub const CAPITALIZATION_BONUS: u8 = 0;
 // bonus multiplier for the first character of the needle
 pub const FIRST_CHAR_MULTIPLIER: u8 = 4;
