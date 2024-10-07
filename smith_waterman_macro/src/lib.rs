@@ -18,6 +18,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         pub fn #function_name(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
+            let needle_str = needle;
             let needle = needle.as_bytes().iter().map(|x| *x as #score_type).collect::<Vec<#score_type>>();
             let needle_len = needle.len();
             let haystack_len = haystacks.iter().map(|x| x.len()).max().unwrap();
@@ -154,6 +155,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
             let mut max_scores_vec = [0; SIMD_WIDTH];
             for i in 0..SIMD_WIDTH {
                 max_scores_vec[i] = all_time_max_score[i] as u16;
+                if haystacks[i] == needle_str { max_scores_vec[i] += EXACT_MATCH_BONUS as u16; }
             }
             max_scores_vec
         }

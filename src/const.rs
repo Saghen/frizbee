@@ -24,3 +24,5 @@ pub const DELIMITER_BONUS: u8 = 2;
 pub const CAPITALIZATION_BONUS: u8 = 0;
 // bonus multiplier for the first character of the needle
 pub const FIRST_CHAR_MULTIPLIER: u8 = 4;
+// bonus for haystack == needle
+pub const EXACT_MATCH_BONUS: u8 = 4;
