@@ -30,6 +30,8 @@ impl<'a> Bucket<'a> {
                 192 => smith_waterman_inter_simd_192,
                 224 => smith_waterman_inter_simd_224,
                 256 => smith_waterman_inter_simd_256,
+                384 => smith_waterman_inter_simd_384,
+                512 => smith_waterman_inter_simd_512,
                 _ => panic!("Invalid string length"),
             },
         }
