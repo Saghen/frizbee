@@ -78,6 +78,8 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         Bucket::new(192),
         Bucket::new(224),
         Bucket::new(256),
+        Bucket::new(384),
+        Bucket::new(512),
     ];
     let mut matches = vec![Match::default(); haystacks.len()];
 
