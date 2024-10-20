@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fzrs::simd::*;
+use frizbee::simd::*;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let needle = "banny";

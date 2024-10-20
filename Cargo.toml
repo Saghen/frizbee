@@ -5,6 +5,7 @@ edition = "2021"
 
 [profile.release]
 lto = true
+codegen-units = 1
 
 [dev-dependencies]
 criterion = "0.4"
