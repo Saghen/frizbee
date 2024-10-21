@@ -140,8 +140,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                     // Calculate maximum scores
                     let max_score = diag_score
                         .simd_max(up_score)
-                        .simd_max(left_score)
-                        .simd_max(zero);
+                        .simd_max(left_score);
 
                     // Update gap penalty mask
                     let diag_mask = max_score.simd_eq(diag_score);

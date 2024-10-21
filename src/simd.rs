@@ -148,8 +148,7 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
             // Calculate maximum scores
             let max_score: SimdVec = diag_score
                 .simd_max(up_score)
-                .simd_max(left_score)
-                .simd_max(zero);
+                .simd_max(left_score);
 
             // Update gap penalty mask
             let diag_mask = max_score.simd_eq(diag_score);
