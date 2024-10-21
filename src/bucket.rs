@@ -50,7 +50,7 @@ impl<'a> Bucket<'a> {
         self.length == SIMD_WIDTH
     }
 
-    pub fn process(&mut self, scores: &mut [Match], needle: &str, _with_indices: bool) {
+    pub fn process(&mut self, matches: &mut [Option<Match>], needle: &str, _with_indices: bool) {
         if self.length == 0 {
             return;
         }
@@ -73,12 +73,12 @@ impl<'a> Bucket<'a> {
 
         for idx in 0..self.length {
             let score_idx = self.idxs[idx];
-            scores[score_idx] = Match {
+            matches[score_idx] = Some(Match {
                 index_in_haystack: score_idx,
                 index: score_idx,
                 score: bucket_scores[idx],
                 indices: None, //indices: bucket_indices.get(idx).cloned(),
-            };
+            });
         }
         self.reset();
     }

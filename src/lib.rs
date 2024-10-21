@@ -22,6 +22,7 @@ pub struct Match {
 }
 
 /// Computes the Smith-Waterman score with affine gaps for the list of given targets.
+///
 /// You should call this function with as many targets as you have available as it will
 /// automatically chunk the targets based on string length to avoid unnecessary computation
 /// due to SIMD
@@ -40,28 +41,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
     }
 
     let needle = needle.to_ascii_lowercase();
-
-    let mut haystacks = haystacks.to_vec();
-
-    // Filters
-    if opts.prefilter {
-        haystacks = haystacks
-            .iter()
-            .filter(|target| {
-                if target.len() <= needle.len() {
-                    return false;
-                }
-
-                let result = prefilter_ascii(needle.as_bytes(), target.as_bytes());
-                if let Some((start, _greedy_end, end)) = result {
-                    needle.len() != (end - start)
-                } else {
-                    false
-                }
-            })
-            .copied()
-            .collect();
-    }
+    let mut matches = vec![None; haystacks.len()];
 
     let mut buckets = [
         Bucket::new(4),
@@ -81,7 +61,6 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         Bucket::new(384),
         Bucket::new(512),
     ];
-    let mut matches = vec![Match::default(); haystacks.len()];
 
     for (i, haystack) in haystacks.iter().enumerate() {
         // Pick the bucket to insert into based on the length of the haystack
@@ -102,8 +81,12 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             225..=256 => 13,
             257..=384 => 14,
             385..=512 => 15,
-            _ => 15, // TODO: should just return score = 0
+            _ => continue, // TODO: should just return score = 0 or fallback to prefilter
         };
+
+        if opts.prefilter && !prefilter(&needle, haystack) {
+            continue;
+        }
 
         let bucket = &mut buckets[bucket_idx];
         bucket.add_haystack(haystack, i);
@@ -118,8 +101,16 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         bucket.process(&mut matches, &needle, opts.indices);
     }
 
+    // Vec<Option<Match>> -> Vec<Match>
+    let mut matches = matches.into_iter().flatten().collect::<Vec<_>>();
+
+    // Min score
     if opts.min_score > 0 {
         matches.retain(|mtch| mtch.score >= opts.min_score);
+    }
+
+    // If either of these ran, the `index` property will be out of date
+    if opts.min_score > 0 || opts.prefilter {
         matches = matches
             .into_iter()
             .enumerate()
@@ -131,6 +122,8 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             })
             .collect();
     }
+
+    // Sorting
     if opts.stable_sort {
         matches.sort_by_key(|mtch| Reverse(mtch.score));
     } else if opts.unstable_sort {
@@ -138,6 +131,13 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
     }
 
     matches
+}
+
+fn prefilter(needle: &str, haystack: &str) -> bool {
+    if needle.len() > haystack.len() {
+        return false;
+    }
+    prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
 }
 
 pub struct Options {
