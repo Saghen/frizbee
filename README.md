@@ -26,6 +26,8 @@ The core of the algorithm is Smith-Waterman with affine gaps and inter-sequence 
 
 Due to the inter-sequence parallelism, the algorithm performs best when all the haystacks are the same length (i.e. length 8) for the given SIMD width (i.e. 16 for 128 bit SIMD with u8 scores). The `match_list` function handles this by grouping the haystacks by length into "buckets" of various sizes (`4`, `8`, `12`, ...). Any haystack with length larger than the largest bucket will be discarded, for now.
 
+Nucleo and FZF use a prefiltering step that removes any haystacks that do not include all of the characters in the needle. Frizbee supports this but disables it by default to allow for typos. You may play with the `min_score` property to control how many typos you allow. A good default may be `6 * needle.len()`.
+
 Many scoring ideas are ~~stolen~~ borrowed from FZY, but implemented in SIMD so the implementation may be slightly different. The scoring parameters are:
 
 - `MATCH_SCORE`: Score for a match
