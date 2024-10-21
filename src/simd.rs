@@ -251,3 +251,52 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
 //        .map(|indices| indices.iter().copied().collect())
 //        .collect()
 //}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
+
+    fn run_single(needle: &str, haystack: &str) -> u8 {
+        let haystacks = [haystack; SIMD_WIDTH];
+        smith_waterman_inter_simd(needle, &haystacks)[0] as u8
+    }
+
+    #[test]
+    fn test_basic() {
+        assert_eq!(run_single("b", "abc"), CHAR_SCORE);
+        assert_eq!(run_single("c", "abc"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_prefix() {
+        assert_eq!(run_single("a", "abc"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(run_single("a", "aabc"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(run_single("a", "babc"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_exact_match() {
+        assert_eq!(run_single("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+        assert_eq!(run_single("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+        assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
+    }
+
+    #[test]
+    fn test_delimiter() {
+        assert_eq!(run_single("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(run_single("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(run_single("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(run_single("c", "a--bc"), CHAR_SCORE);
+        assert_eq!(run_single("a", "-a--bc"), CHAR_SCORE);
+        assert_eq!(run_single("-", "a-bc"), CHAR_SCORE);
+        assert_eq!(run_single("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
+    }
+
+    #[test]
+    fn test_affine_gap() {
+        assert_eq!(run_single("test", "Uterst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY);
+        assert_eq!(run_single("test", "Uterrst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY);
+    }
+}
