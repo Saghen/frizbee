@@ -8,6 +8,7 @@ generate_smith_waterman!(4);
 generate_smith_waterman!(8);
 generate_smith_waterman!(12);
 generate_smith_waterman!(16);
+generate_smith_waterman!(20);
 generate_smith_waterman!(24);
 generate_smith_waterman!(32);
 generate_smith_waterman!(48);
@@ -38,6 +39,7 @@ pub fn interleave_strings(strings: &[&str]) -> [[u8; SIMD_WIDTH]; 8] {
 type SimdVec = Simd<u8, SIMD_WIDTH>;
 
 pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
+    let needle_str = needle;
     let needle = needle.as_bytes();
     let needle_len = needle.len();
     let haystack_len = haystacks.iter().map(|x| x.len()).max().unwrap();
@@ -45,24 +47,26 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
     let haystack = interleave_strings(haystacks);
 
     // State
-    let mut prev_col_score_simds: [SimdVec; 9] = [Simd::splat(0); 9];
-    let mut left_gap_penalty_masks = [Mask::splat(true); 8];
+    let mut prev_col_score_simds: [SimdVec; SIMD_WIDTH + 1] = [Simd::splat(0); SIMD_WIDTH + 1];
+    let mut left_gap_penalty_masks = [Mask::splat(true); SIMD_WIDTH];
     let mut all_time_max_score = Simd::splat(0);
 
     // Delimiters
-    let mut is_delimiter_masks = [Mask::splat(false); 8];
-    let space_delimiter = Simd::splat(" ".bytes().next().unwrap() as u8);
-    let slash_delimiter = Simd::splat("/".bytes().next().unwrap() as u8);
-    let dot_delimiter = Simd::splat(".".bytes().next().unwrap() as u8);
-    let comma_delimiter = Simd::splat(",".bytes().next().unwrap() as u8);
-    let underscore_delimiter = Simd::splat("_".bytes().next().unwrap() as u8);
-    let dash_delimiter = Simd::splat("-".bytes().next().unwrap() as u8);
+    let mut delimiter_bonus_enabled_mask = Mask::splat(false);
+    let mut is_delimiter_masks = [Mask::splat(false); SIMD_WIDTH + 1];
+    let space_delimiter = Simd::splat(" ".bytes().next().unwrap());
+    let slash_delimiter = Simd::splat("/".bytes().next().unwrap());
+    let dot_delimiter = Simd::splat(".".bytes().next().unwrap());
+    let comma_delimiter = Simd::splat(",".bytes().next().unwrap());
+    let underscore_delimiter = Simd::splat("_".bytes().next().unwrap());
+    let dash_delimiter = Simd::splat("-".bytes().next().unwrap());
     let delimiter_bonus = Simd::splat(DELIMITER_BONUS);
 
     // Capitalization
-    let capital_start = Simd::splat("A".bytes().next().unwrap() as u8);
-    let capital_end = Simd::splat("Z".bytes().next().unwrap() as u8);
+    let capital_start = Simd::splat("A".bytes().next().unwrap());
+    let capital_end = Simd::splat("Z".bytes().next().unwrap());
     let capitalization_bonus = Simd::splat(CAPITALIZATION_BONUS);
+    let matching_casing_bonus = Simd::splat(MATCHING_CASE_BONUS);
     let to_lowercase_mask = Simd::splat(0x20);
 
     // Scoring params
@@ -93,16 +97,22 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
         let needle_char = Simd::splat(needle[i - 1]);
         let mut up_score_simd = Simd::splat(0);
         let mut up_gap_penalty_mask = Mask::splat(true);
-        let mut curr_col_score_simds: [SimdVec; 9] = [Simd::splat(0); 9];
+        let mut curr_col_score_simds: [SimdVec; SIMD_WIDTH + 1] = [Simd::splat(0); SIMD_WIDTH + 1];
+        let needle_cased_mask = needle_char
+            .simd_ge(capital_start)
+            .bitand(needle_char.simd_le(capital_end));
 
         for j in 1..=haystack_len {
             let prefix_mask = Mask::splat(j == 1);
+
             // Load chunk and remove casing
             let cased_haystack_simd = SimdVec::from_slice(&haystack[j - 1]);
             let capital_mask = cased_haystack_simd
                 .simd_ge(capital_start)
                 .bitand(cased_haystack_simd.simd_le(capital_end));
             let haystack_simd = cased_haystack_simd | capital_mask.select(to_lowercase_mask, zero);
+
+            let matched_casing_mask = needle_cased_mask.simd_eq(capital_mask);
 
             // Give a bonus for prefix matches
             let match_score = prefix_mask.select(prefix_match_score, match_score);
@@ -112,9 +122,10 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
             let match_mask = needle_char.simd_eq(haystack_simd);
             let diag_score = match_mask.select(
                 diag + match_score
-                    + is_delimiter_masks[j - 1].select(delimiter_bonus, zero)
+                    + is_delimiter_masks[j - 1].bitand(delimiter_bonus_enabled_mask).select(delimiter_bonus, zero)
                     // XOR with prefix mask to ignore capitalization on the prefix
-                    + capital_mask.bitand(prefix_mask.not()).select(capitalization_bonus, zero),
+                    + capital_mask.bitand(prefix_mask.not()).select(capitalization_bonus, zero)
+                    + matched_casing_mask.select(matching_casing_bonus, zero),
                 diag.simd_gt(mismatch_score)
                     .select(diag - mismatch_score, zero),
             );
@@ -145,14 +156,16 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
             up_gap_penalty_mask = max_score.simd_ne(up_score).bitor(diag_mask);
             left_gap_penalty_masks[j - 1] = max_score.simd_ne(left_score).bitor(diag_mask);
 
-            // Update delimiter mask
-            is_delimiter_masks[j - 1] = space_delimiter
-                .simd_eq(needle_char)
-                .bitor(slash_delimiter.simd_eq(needle_char))
-                .bitor(dot_delimiter.simd_eq(needle_char))
-                .bitor(comma_delimiter.simd_eq(needle_char))
-                .bitor(underscore_delimiter.simd_eq(needle_char))
-                .bitor(dash_delimiter.simd_eq(needle_char));
+            // Update delimiter masks
+            is_delimiter_masks[j] = space_delimiter
+                .simd_eq(haystack_simd)
+                .bitor(slash_delimiter.simd_eq(haystack_simd))
+                .bitor(dot_delimiter.simd_eq(haystack_simd))
+                .bitor(comma_delimiter.simd_eq(haystack_simd))
+                .bitor(underscore_delimiter.simd_eq(haystack_simd))
+                .bitor(dash_delimiter.simd_eq(haystack_simd));
+            // Only enable delimiter bonus if we've seen a non-delimiter char
+            delimiter_bonus_enabled_mask = delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
 
             // Store the scores for the next iterations
             up_score_simd = max_score;
@@ -168,6 +181,7 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
     let mut max_scores_vec = [0; SIMD_WIDTH];
     for i in 0..SIMD_WIDTH {
         max_scores_vec[i] = all_time_max_score[i] as u16;
+        if haystacks[i] == needle_str { max_scores_vec[i] += EXACT_MATCH_BONUS as u16; }
     }
     max_scores_vec
 }

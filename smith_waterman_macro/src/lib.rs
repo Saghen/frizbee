@@ -9,6 +9,11 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
         .base10_parse::<usize>()
         .unwrap();
     let width_with_padding = width + 1;
+
+    // We must ensure that we don't overflow on u8. We can calculate the max score via:
+    // length * (MATCH_SCORE + DELIMITER_BONUS + CAPITALIZATION_BONUS + MATCHING_CASING_BONUS)
+    // + PREFIX_BONUS + EXACT_MATCH_BONUS + FIRST_CHAR_MULTIPLIER
+    // < 256
     let score_type = if width > 24 { quote!(u16) } else { quote!(u8) };
 
     let function_name = Ident::new(
@@ -39,7 +44,8 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
             let mut all_time_max_score = Simd::splat(0);
 
             // Delimiters
-            let mut is_delimiter_masks = [Mask::splat(false); #width];
+            let mut delimiter_bonus_enabled_mask = Mask::splat(false);
+            let mut is_delimiter_masks = [Mask::splat(false); #width_with_padding];
             let space_delimiter = Simd::splat(" ".bytes().next().unwrap() as #score_type);
             let slash_delimiter = Simd::splat("/".bytes().next().unwrap() as #score_type);
             let dot_delimiter = Simd::splat(".".bytes().next().unwrap() as #score_type);
@@ -52,6 +58,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
             let capital_start = Simd::splat("A".bytes().next().unwrap() as #score_type);
             let capital_end = Simd::splat("Z".bytes().next().unwrap() as #score_type);
             let capitalization_bonus = Simd::splat(CAPITALIZATION_BONUS as #score_type);
+            let matching_casing_bonus = Simd::splat(MATCHING_CASE_BONUS as #score_type);
             let to_lowercase_mask = Simd::splat(0x20);
 
             // Scoring params
@@ -83,8 +90,13 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                 let mut up_score_simd = Simd::splat(0);
                 let mut up_gap_penalty_mask = Mask::splat(true);
                 let mut curr_col_score_simds: [Simd<#score_type, SIMD_WIDTH>; #width_with_padding] = [Simd::splat(0); #width_with_padding];
+                let needle_cased_mask = needle_char
+                    .simd_ge(capital_start)
+                    .bitand(needle_char.simd_le(capital_end));
 
                 for j in 1..=haystack_len {
+                    let prefix_mask = Mask::splat(j == 1);
+
                     // Load chunk and remove casing
                     let cased_haystack_simd = Simd::<#score_type, SIMD_WIDTH>::from_slice(&haystack[j - 1]);
                     let capital_mask = cased_haystack_simd
@@ -92,8 +104,10 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                         .bitand(cased_haystack_simd.simd_le(capital_end));
                     let haystack_simd = cased_haystack_simd | capital_mask.select(to_lowercase_mask, zero);
 
+                    let matched_casing_mask = needle_cased_mask.simd_eq(capital_mask);
+
                     // Give a bonus for prefix matches
-                    let match_score = Mask::splat(j == 1).select(prefix_match_score, match_score);
+                    let match_score = prefix_mask.select(prefix_match_score, match_score);
 
                     // Calculate diagonal (match/mismatch) scores
                     let diag = prev_col_score_simds[j - 1];
@@ -101,7 +115,9 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                     let diag_score = match_mask.select(
                         diag + match_score
                             + is_delimiter_masks[j - 1].select(delimiter_bonus, zero)
-                            + capital_mask.bitand(Mask::splat(j != 1)).select(capitalization_bonus, zero),
+                            // XOR with prefix mask to ignore capitalization on the prefix
+                            + capital_mask.bitand(prefix_mask.not()).select(capitalization_bonus, zero)
+                            + matched_casing_mask.select(matching_casing_bonus, zero),
                         diag.simd_gt(mismatch_score)
                             .select(diag - mismatch_score, zero),
                     );
@@ -132,14 +148,16 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                     up_gap_penalty_mask = max_score.simd_ne(up_score).bitor(diag_mask);
                     left_gap_penalty_masks[j - 1] = max_score.simd_ne(left_score).bitor(diag_mask);
 
-                    // Update delimiter mask
-                    is_delimiter_masks[j - 1] = space_delimiter
-                        .simd_eq(needle_char)
-                        .bitor(slash_delimiter.simd_eq(needle_char))
-                        .bitor(dot_delimiter.simd_eq(needle_char))
-                        .bitor(comma_delimiter.simd_eq(needle_char))
-                        .bitor(underscore_delimiter.simd_eq(needle_char))
-                        .bitor(dash_delimiter.simd_eq(needle_char));
+                    // Update delimiter masks
+                    is_delimiter_masks[j] = space_delimiter
+                        .simd_eq(haystack_simd)
+                        .bitor(slash_delimiter.simd_eq(haystack_simd))
+                        .bitor(dot_delimiter.simd_eq(haystack_simd))
+                        .bitor(comma_delimiter.simd_eq(haystack_simd))
+                        .bitor(underscore_delimiter.simd_eq(haystack_simd))
+                        .bitor(dash_delimiter.simd_eq(haystack_simd));
+                    // Only enable delimiter bonus if we've seen a non-delimiter char
+                    delimiter_bonus_enabled_mask = delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
 
                     // Store the scores for the next iterations
                     up_score_simd = max_score;

@@ -40,7 +40,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             .collect();
     }
 
-    let needle = needle.to_ascii_lowercase();
+    let needle_lower = needle.to_ascii_lowercase();
     let mut matches = vec![None; haystacks.len()];
 
     let mut buckets = [
@@ -48,6 +48,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         Bucket::new(8),
         Bucket::new(12),
         Bucket::new(16),
+        Bucket::new(20),
         Bucket::new(24),
         Bucket::new(32),
         Bucket::new(48),
@@ -69,22 +70,24 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             5..=8 => 1,
             9..=12 => 2,
             13..=16 => 3,
-            17..=24 => 4,
-            25..=32 => 5,
-            33..=48 => 6,
-            49..=64 => 7,
-            65..=96 => 8,
-            97..=128 => 9,
-            129..=160 => 10,
-            161..=192 => 11,
-            193..=224 => 12,
-            225..=256 => 13,
-            257..=384 => 14,
-            385..=512 => 15,
-            _ => continue, // TODO: should just return score = 0 or fallback to prefilter
+            17..=20 => 4,
+            21..=24 => 5,
+            25..=32 => 6,
+            33..=48 => 7,
+            49..=64 => 8,
+            65..=96 => 9,
+            97..=128 => 10,
+            129..=160 => 11,
+            161..=192 => 12,
+            193..=224 => 13,
+            225..=256 => 14,
+            257..=384 => 15,
+            385..=512 => 16,
+            // TODO: should just return score = 0 or fallback to prefilter
+            _ => continue,
         };
 
-        if opts.prefilter && !prefilter(&needle, haystack) {
+        if opts.prefilter && !prefilter(&needle_lower, haystack) {
             continue;
         }
 
@@ -92,13 +95,13 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         bucket.add_haystack(haystack, i);
 
         if bucket.is_full() {
-            bucket.process(&mut matches, &needle, opts.indices);
+            bucket.process(&mut matches, needle, opts.indices);
         }
     }
 
     // Iterate over the bucket with remaining elements
     for bucket in buckets.iter_mut() {
-        bucket.process(&mut matches, &needle, opts.indices);
+        bucket.process(&mut matches, needle, opts.indices);
     }
 
     // Vec<Option<Match>> -> Vec<Match>

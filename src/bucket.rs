@@ -20,6 +20,7 @@ impl<'a> Bucket<'a> {
                 8 => smith_waterman_inter_simd_8,
                 12 => smith_waterman_inter_simd_12,
                 16 => smith_waterman_inter_simd_16,
+                20 => smith_waterman_inter_simd_20,
                 24 => smith_waterman_inter_simd_24,
                 32 => smith_waterman_inter_simd_32,
                 48 => smith_waterman_inter_simd_48,
