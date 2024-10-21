@@ -11,6 +11,8 @@ use std::io::{self, BufRead};
 use std::path::Path;
 
 fn get_data() -> Vec<String> {
+    // Download title.basics.tsv from https://datasets.imdbws.com
+    // and update this path to run benchmarks
     let path = Path::new("/home/saghen/downloads/title.basics.tsv");
     let file = File::open(path).unwrap();
     let reader = io::BufReader::new(file);
