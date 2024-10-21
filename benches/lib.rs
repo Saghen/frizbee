@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fzrs::*;
+use frizbee::*;
 use nucleo_matcher::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
     Config, Matcher,
@@ -65,6 +65,18 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("match_list", |b| {
         b.iter(|| {
             match_list(black_box(query), black_box(&data), Options::default());
+        })
+    });
+    c.bench_function("match_list_prefilter", |b| {
+        b.iter(|| {
+            match_list(
+                black_box(query),
+                black_box(&data),
+                Options {
+                    prefilter: true,
+                    ..Default::default()
+                },
+            );
         })
     });
     c.bench_function("nucleo_match_list", |b| {
