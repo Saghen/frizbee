@@ -2,6 +2,7 @@ use crate::r#const::*;
 use smith_waterman_macro::generate_smith_waterman;
 use std::ops::{BitAnd, BitOr, Not};
 use std::simd::cmp::*;
+use std::simd::num::SimdUint;
 use std::simd::{Mask, Simd};
 
 generate_smith_waterman!(4);
@@ -127,24 +128,19 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
                     // XOR with prefix mask to ignore capitalization on the prefix
                     + capital_mask.bitand(prefix_mask.not()).select(capitalization_bonus, zero)
                     + matched_casing_mask.select(matching_casing_bonus, zero),
-                diag.simd_gt(mismatch_score)
-                    .select(diag - mismatch_score, zero),
+                diag.saturating_sub(mismatch_score),
             );
 
             // Load and calculate up scores
             let up_gap_penalty = up_gap_penalty_mask.select(gap_open_penalty, gap_extend_penalty);
-            let up_score = up_score_simd
-                .simd_gt(up_gap_penalty)
-                .select(up_score_simd - up_gap_penalty, zero);
+            let up_score = up_score_simd.saturating_sub(up_gap_penalty);
 
             // Load and calculate left scores
             let left = prev_col_score_simds[j];
             let left_gap_penalty_mask = left_gap_penalty_masks[j - 1];
             let left_gap_penalty =
                 left_gap_penalty_mask.select(gap_open_penalty, gap_extend_penalty);
-            let left_score = left
-                .simd_gt(left_gap_penalty)
-                .select(left - left_gap_penalty, zero);
+            let left_score = left.saturating_sub(left_gap_penalty);
 
             // Calculate maximum scores
             let max_score: SimdVec = diag_score.simd_max(up_score).simd_max(left_score);
