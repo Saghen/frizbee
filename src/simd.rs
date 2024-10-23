@@ -101,6 +101,7 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
         let needle_cased_mask = needle_char
             .simd_ge(capital_start)
             .bitand(needle_char.simd_le(capital_end));
+        let needle_char = needle_char | needle_cased_mask.select(to_lowercase_mask, zero);
 
         for j in 1..=haystack_len {
             let prefix_mask = Mask::splat(j == 1);
@@ -146,9 +147,7 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
                 .select(left - left_gap_penalty, zero);
 
             // Calculate maximum scores
-            let max_score: SimdVec = diag_score
-                .simd_max(up_score)
-                .simd_max(left_score);
+            let max_score: SimdVec = diag_score.simd_max(up_score).simd_max(left_score);
 
             // Update gap penalty mask
             let diag_mask = max_score.simd_eq(diag_score);
@@ -164,7 +163,8 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
                 .bitor(underscore_delimiter.simd_eq(haystack_simd))
                 .bitor(dash_delimiter.simd_eq(haystack_simd));
             // Only enable delimiter bonus if we've seen a non-delimiter char
-            delimiter_bonus_enabled_mask = delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
+            delimiter_bonus_enabled_mask =
+                delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
 
             // Store the scores for the next iterations
             up_score_simd = max_score;
@@ -180,7 +180,9 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
     let mut max_scores_vec = [0; SIMD_WIDTH];
     for i in 0..SIMD_WIDTH {
         max_scores_vec[i] = all_time_max_score[i] as u16;
-        if haystacks[i] == needle_str { max_scores_vec[i] += EXACT_MATCH_BONUS as u16; }
+        if haystacks[i] == needle_str {
+            max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
+        }
     }
     max_scores_vec
 }
@@ -277,8 +279,14 @@ mod tests {
 
     #[test]
     fn test_exact_match() {
-        assert_eq!(run_single("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
-        assert_eq!(run_single("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+        assert_eq!(
+            run_single("a", "a"),
+            CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
+        );
+        assert_eq!(
+            run_single("abc", "abc"),
+            3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
+        );
         assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
@@ -295,7 +303,20 @@ mod tests {
 
     #[test]
     fn test_affine_gap() {
-        assert_eq!(run_single("test", "Uterst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY);
-        assert_eq!(run_single("test", "Uterrst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY);
+        assert_eq!(
+            run_single("test", "Uterst"),
+            CHAR_SCORE * 4 - GAP_OPEN_PENALTY
+        );
+        assert_eq!(
+            run_single("test", "Uterrst"),
+            CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
+        );
+    }
+
+    #[test]
+    fn test_capital_bonus() {
+        assert_eq!(run_single("a", "A"), MATCH_SCORE + PREFIX_BONUS);
+        assert_eq!(run_single("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(run_single("D", "forDist"), CHAR_SCORE);
     }
 }
