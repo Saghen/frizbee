@@ -23,13 +23,14 @@ generate_smith_waterman!(256);
 generate_smith_waterman!(384);
 generate_smith_waterman!(512);
 
-pub fn interleave_strings(strings: &[&str]) -> [[u8; SIMD_WIDTH]; 8] {
-    let mut cased_result = [[0; SIMD_WIDTH]; 8];
+// TODO: possible to use .interleave()?
+pub fn interleave_strings(strings: &[&str], max_len: usize) -> Vec<[u16; SIMD_WIDTH]> {
+    let mut cased_result = vec![[0; SIMD_WIDTH]; max_len];
 
     for (char_idx, cased_slice) in cased_result.iter_mut().enumerate() {
         for str_idx in 0..SIMD_WIDTH {
             if let Some(char) = strings[str_idx].as_bytes().get(char_idx) {
-                cased_slice[str_idx] = *char;
+                cased_slice[str_idx] = *char as u16;
             }
         }
     }
@@ -37,15 +38,19 @@ pub fn interleave_strings(strings: &[&str]) -> [[u8; SIMD_WIDTH]; 8] {
     cased_result
 }
 
-type SimdVec = Simd<u8, SIMD_WIDTH>;
+type SimdVec = Simd<u16, SIMD_WIDTH>;
 
-pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
+pub fn smith_waterman(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
     let needle_str = needle;
-    let needle = needle.as_bytes();
+    let needle = needle
+        .as_bytes()
+        .iter()
+        .map(|x| *x as u16)
+        .collect::<Vec<u16>>();
     let needle_len = needle.len();
     let haystack_len = haystacks.iter().map(|x| x.len()).max().unwrap();
 
-    let haystack = interleave_strings(haystacks);
+    let haystack = interleave_strings(haystacks, haystack_len);
 
     // State
     let mut prev_col_score_simds: [SimdVec; SIMD_WIDTH + 1] = [Simd::splat(0); SIMD_WIDTH + 1];
@@ -55,17 +60,17 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
     // Delimiters
     let mut delimiter_bonus_enabled_mask = Mask::splat(false);
     let mut is_delimiter_masks = [Mask::splat(false); SIMD_WIDTH + 1];
-    let space_delimiter = Simd::splat(" ".bytes().next().unwrap());
-    let slash_delimiter = Simd::splat("/".bytes().next().unwrap());
-    let dot_delimiter = Simd::splat(".".bytes().next().unwrap());
-    let comma_delimiter = Simd::splat(",".bytes().next().unwrap());
-    let underscore_delimiter = Simd::splat("_".bytes().next().unwrap());
-    let dash_delimiter = Simd::splat("-".bytes().next().unwrap());
+    let space_delimiter = Simd::splat(" ".bytes().next().unwrap() as u16);
+    let slash_delimiter = Simd::splat("/".bytes().next().unwrap() as u16);
+    let dot_delimiter = Simd::splat(".".bytes().next().unwrap() as u16);
+    let comma_delimiter = Simd::splat(",".bytes().next().unwrap() as u16);
+    let underscore_delimiter = Simd::splat("_".bytes().next().unwrap() as u16);
+    let dash_delimiter = Simd::splat("-".bytes().next().unwrap() as u16);
     let delimiter_bonus = Simd::splat(DELIMITER_BONUS);
 
     // Capitalization
-    let capital_start = Simd::splat("A".bytes().next().unwrap());
-    let capital_end = Simd::splat("Z".bytes().next().unwrap());
+    let capital_start = Simd::splat("A".bytes().next().unwrap() as u16);
+    let capital_end = Simd::splat("Z".bytes().next().unwrap() as u16);
     let capitalization_bonus = Simd::splat(CAPITALIZATION_BONUS);
     let matching_casing_bonus = Simd::splat(MATCHING_CASE_BONUS);
     let to_lowercase_mask = Simd::splat(0x20);
@@ -175,89 +180,23 @@ pub fn smith_waterman_inter_simd(needle: &str, haystacks: &[&str]) -> [u16; SIMD
 
     let mut max_scores_vec = [0; SIMD_WIDTH];
     for i in 0..SIMD_WIDTH {
-        max_scores_vec[i] = all_time_max_score[i] as u16;
+        max_scores_vec[i] = all_time_max_score[i];
         if haystacks[i] == needle_str {
-            max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
+            max_scores_vec[i] += EXACT_MATCH_BONUS;
         }
     }
     max_scores_vec
 }
 
-//pub fn char_indices_from_scores(
-//    score_matrices: &[SimdScoreVec],
-//    max_scores: &[u8; SIMD_WIDTH],
-//    haystack_len: usize,
-//) -> Vec<Vec<usize>> {
-//    // Get the row and column indices of the maximum score
-//    let max_scores = Simd::from_slice(max_scores);
-//    let mut max_row = Simd::splat(0);
-//    let mut max_col = Simd::splat(0);
-//
-//    for (col_idx, column) in score_matrices.chunks_exact(haystack_len).enumerate() {
-//        let col_idx_simd = Simd::splat(col_idx as u8);
-//        for (row_idx, score) in column.iter().enumerate() {
-//            let row_idx_simd = Simd::splat(row_idx as u8);
-//
-//            let eq = score.simd_eq(max_scores);
-//            max_row = eq.select(row_idx_simd, max_row);
-//            max_col = eq.select(col_idx_simd, max_col);
-//        }
-//    }
-//
-//    let max_row_arr = max_row.to_array();
-//    let max_col_arr = max_col.to_array();
-//    let max_score_positions = max_row_arr
-//        .iter()
-//        .zip(max_col_arr.iter())
-//        .map(|(row, col)| (*row as usize, *col as usize));
-//
-//    // Traceback and store the indices
-//    let mut indices = vec![HashSet::new(); SIMD_WIDTH];
-//    let row_stride = haystack_len + 1;
-//    for (idx, (row_idx, col_idx)) in max_score_positions.enumerate() {
-//        let indices = &mut indices[idx];
-//        indices.insert(col_idx);
-//
-//        let mut last_idx = (row_idx, col_idx);
-//        let mut score = score_matrices[row_idx * row_stride + col_idx][idx];
-//        while score > 0 {
-//            let (row_idx, col_idx) = last_idx;
-//
-//            // Gather up the scores for all possible paths
-//            let diag = score_matrices[(row_idx - 1) * row_stride + col_idx - 1][idx];
-//            let up = score_matrices[(row_idx - 1) * row_stride + col_idx][idx];
-//            let left = score_matrices[row_idx * row_stride + col_idx - 1][idx];
-//
-//            // Choose the best path and store the index on the haystack if applicable
-//            // TODO: is this logic correct? which route should we prefer?
-//            score = diag.max(up).max(left);
-//            if score == diag {
-//                indices.insert(col_idx - 1);
-//                last_idx = (row_idx - 1, col_idx - 1);
-//            } else if score == up {
-//                indices.insert(col_idx - 1);
-//                last_idx = (row_idx, col_idx - 1);
-//            } else {
-//                last_idx = (row_idx - 1, col_idx);
-//            }
-//        }
-//    }
-//
-//    indices
-//        .iter()
-//        .map(|indices| indices.iter().copied().collect())
-//        .collect()
-//}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
+    const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
-    fn run_single(needle: &str, haystack: &str) -> u8 {
+    fn run_single(needle: &str, haystack: &str) -> u16 {
         let haystacks = [haystack; SIMD_WIDTH];
-        smith_waterman_inter_simd(needle, &haystacks)[0] as u8
+        smith_waterman(needle, &haystacks)[0]
     }
 
     #[test]

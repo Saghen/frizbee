@@ -5,10 +5,13 @@ extern crate memchr;
 mod bucket;
 pub mod r#const;
 mod prefilter;
+pub mod score_matrix;
 pub mod simd;
 
+use crate::score_matrix::*;
 use bucket::Bucket;
 use prefilter::prefilter_ascii;
+use r#const::SIMD_WIDTH;
 use std::cmp::Reverse;
 
 #[derive(Debug, Clone, Default)]
@@ -134,6 +137,31 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
     }
 
     matches
+}
+
+pub fn match_list_for_matched_indices(needle: &str, haystacks: &[&str]) -> Vec<Vec<usize>> {
+    // TODO: sort by length
+    let haystacks = haystacks.to_vec();
+
+    let mut matched_indices_arr = Vec::with_capacity(haystacks.len());
+
+    for haystack_idx in (0..haystacks.len()).step_by(SIMD_WIDTH) {
+        let length = (haystacks.len().saturating_sub(haystack_idx)).min(SIMD_WIDTH);
+        let mut sliced_haystacks = [""; SIMD_WIDTH];
+        sliced_haystacks[0..length]
+            .copy_from_slice(&haystacks[haystack_idx..haystack_idx + length]);
+
+        let (score_matrices, max_score_locations) =
+            smith_waterman_with_scoring_matrix(needle, &sliced_haystacks);
+        let haystack_slice_matched_indices =
+            char_indices_from_scores(score_matrices, max_score_locations);
+
+        for matched_indices in haystack_slice_matched_indices.into_iter().take(length) {
+            matched_indices_arr.push(matched_indices);
+        }
+    }
+
+    matched_indices_arr
 }
 
 fn prefilter(needle: &str, haystack: &str) -> bool {
