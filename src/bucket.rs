@@ -1,45 +1,50 @@
-use crate::r#const::SIMD_WIDTH;
 use crate::simd::*;
 use crate::Match;
 
 pub(crate) struct Bucket<'a> {
+    width: usize,
     length: usize,
-    haystacks: [&'a str; SIMD_WIDTH],
-    idxs: [usize; SIMD_WIDTH],
-    smith_waterman_func: fn(&str, &[&str]) -> [u16; SIMD_WIDTH],
+    haystacks: [&'a str; 16],
+    idxs: [usize; 16],
+    smith_waterman_func: Option<fn(&str, &[&str]) -> [u16; 16]>,
+    smith_waterman_func_large: Option<fn(&str, &[&str]) -> [u16; 8]>,
 }
 
 impl<'a> Bucket<'a> {
     pub fn new(string_length: usize) -> Self {
         Bucket {
+            width: if string_length <= 24 { 16 } else { 8 },
             length: 0,
-            haystacks: [""; SIMD_WIDTH],
-            idxs: [0; SIMD_WIDTH],
+            haystacks: [""; 16],
+            idxs: [0; 16],
             smith_waterman_func: match string_length {
-                4 => smith_waterman_inter_simd_4,
-                8 => smith_waterman_inter_simd_8,
-                12 => smith_waterman_inter_simd_12,
-                16 => smith_waterman_inter_simd_16,
-                20 => smith_waterman_inter_simd_20,
-                24 => smith_waterman_inter_simd_24,
-                32 => smith_waterman_inter_simd_32,
-                48 => smith_waterman_inter_simd_48,
-                64 => smith_waterman_inter_simd_64,
-                96 => smith_waterman_inter_simd_96,
-                128 => smith_waterman_inter_simd_128,
-                160 => smith_waterman_inter_simd_160,
-                192 => smith_waterman_inter_simd_192,
-                224 => smith_waterman_inter_simd_224,
-                256 => smith_waterman_inter_simd_256,
-                384 => smith_waterman_inter_simd_384,
-                512 => smith_waterman_inter_simd_512,
-                _ => panic!("Invalid string length"),
+                4 => Some(smith_waterman_inter_simd_4),
+                8 => Some(smith_waterman_inter_simd_8),
+                12 => Some(smith_waterman_inter_simd_12),
+                16 => Some(smith_waterman_inter_simd_16),
+                20 => Some(smith_waterman_inter_simd_20),
+                24 => Some(smith_waterman_inter_simd_24),
+                _ => None,
+            },
+            smith_waterman_func_large: match string_length {
+                32 => Some(smith_waterman_inter_simd_32),
+                48 => Some(smith_waterman_inter_simd_48),
+                64 => Some(smith_waterman_inter_simd_64),
+                96 => Some(smith_waterman_inter_simd_96),
+                128 => Some(smith_waterman_inter_simd_128),
+                160 => Some(smith_waterman_inter_simd_160),
+                192 => Some(smith_waterman_inter_simd_192),
+                224 => Some(smith_waterman_inter_simd_224),
+                256 => Some(smith_waterman_inter_simd_256),
+                384 => Some(smith_waterman_inter_simd_384),
+                512 => Some(smith_waterman_inter_simd_512),
+                _ => None,
             },
         }
     }
 
     pub fn add_haystack(&mut self, haystack: &'a str, idx: usize) {
-        if self.length == SIMD_WIDTH {
+        if self.length == self.width {
             return;
         }
         self.haystacks[self.length] = haystack;
@@ -48,7 +53,7 @@ impl<'a> Bucket<'a> {
     }
 
     pub fn is_full(&self) -> bool {
-        self.length == SIMD_WIDTH
+        self.length == self.width
     }
 
     pub fn process(&mut self, matches: &mut [Option<Match>], needle: &str, _with_indices: bool) {
@@ -56,31 +61,30 @@ impl<'a> Bucket<'a> {
             return;
         }
 
-        let bucket_scores = (self.smith_waterman_func)(needle, &self.haystacks);
-        //let bucket_indices = if with_indices {
-        //    vec![]
-        //    //char_indices_from_scores(
-        //    //    &bucket_score_matrix
-        //    //        .iter()
-        //    //        .flatten()
-        //    //        .copied()
-        //    //        .collect::<Vec<_>>(),
-        //    //    &bucket_scores,
-        //    //    self.haystack_len(),
-        //    //)
-        //} else {
-        //    vec![]
-        //};
-
-        for idx in 0..self.length {
-            let score_idx = self.idxs[idx];
-            matches[score_idx] = Some(Match {
-                index_in_haystack: score_idx,
-                index: score_idx,
-                score: bucket_scores[idx],
-                indices: None, //indices: bucket_indices.get(idx).cloned(),
-            });
+        if let Some(smith_waterman_func) = self.smith_waterman_func {
+            let scores = (smith_waterman_func)(needle, &self.haystacks);
+            for idx in 0..self.length {
+                let score_idx = self.idxs[idx];
+                matches[score_idx] = Some(Match {
+                    index_in_haystack: score_idx,
+                    index: score_idx,
+                    score: scores[idx],
+                    indices: None, //indices: bucket_indices.get(idx).cloned(),
+                });
+            }
+        } else {
+            let scores = self.smith_waterman_func_large.unwrap()(needle, &self.haystacks);
+            for idx in 0..self.length {
+                let score_idx = self.idxs[idx];
+                matches[score_idx] = Some(Match {
+                    index_in_haystack: score_idx,
+                    index: score_idx,
+                    score: scores[idx],
+                    indices: None, //indices: bucket_indices.get(idx).cloned(),
+                });
+            }
         }
+
         self.reset();
     }
 

@@ -15,6 +15,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
     // + PREFIX_BONUS + EXACT_MATCH_BONUS + FIRST_CHAR_MULTIPLIER
     // < 256
     let score_type = if width > 24 { quote!(u16) } else { quote!(u8) };
+    let simd_width = if width > 24 { quote!(8) } else { quote!(16) };
 
     let function_name = Ident::new(
         &format!("smith_waterman_inter_simd_{}", width),
@@ -22,16 +23,16 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
     );
 
     let expanded = quote! {
-        pub fn #function_name(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
+        pub fn #function_name(needle: &str, haystacks: &[&str]) -> [u16; #simd_width] {
             let needle_str = needle;
             let needle = needle.as_bytes().iter().map(|x| *x as #score_type).collect::<Vec<#score_type>>();
             let needle_len = needle.len();
             let haystack_len = haystacks.iter().map(|x| x.len()).max().unwrap();
 
             // Convert haystacks to a static array of bytes chunked for SIMD
-            let mut haystack = [[0; SIMD_WIDTH]; #width];
+            let mut haystack = [[0; #simd_width]; #width];
             for (char_idx, haystack_slice) in haystack.iter_mut().enumerate() {
-                for str_idx in 0..SIMD_WIDTH {
+                for str_idx in 0..#simd_width {
                     if let Some(char) = haystacks[str_idx].as_bytes().get(char_idx) {
                         haystack_slice[str_idx] = *char as #score_type;
                     }
@@ -39,7 +40,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
             }
 
             // State
-            let mut prev_col_score_simds: [Simd<#score_type, SIMD_WIDTH>; #width_with_padding] = [Simd::splat(0); #width_with_padding];
+            let mut prev_col_score_simds: [Simd<#score_type, #simd_width>; #width_with_padding] = [Simd::splat(0); #width_with_padding];
             let mut left_gap_penalty_masks = [Mask::splat(true); #width];
             let mut all_time_max_score = Simd::splat(0);
 
@@ -72,7 +73,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
             let first_char_prefix_match_score =
                 Simd::splat(((MATCH_SCORE + PREFIX_BONUS) * FIRST_CHAR_MULTIPLIER) as #score_type);
 
-            let zero: Simd<#score_type, SIMD_WIDTH> = Simd::splat(0);
+            let zero: Simd<#score_type, #simd_width> = Simd::splat(0);
 
             for i in 1..=needle_len {
                 let match_score = if i == 1 {
@@ -89,7 +90,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                 let needle_char = Simd::splat(needle[i - 1] as #score_type);
                 let mut up_score_simd = Simd::splat(0);
                 let mut up_gap_penalty_mask = Mask::splat(true);
-                let mut curr_col_score_simds: [Simd<#score_type, SIMD_WIDTH>; #width_with_padding] = [Simd::splat(0); #width_with_padding];
+                let mut curr_col_score_simds: [Simd<#score_type, #simd_width>; #width_with_padding] = [Simd::splat(0); #width_with_padding];
                 let needle_cased_mask = needle_char
                     .simd_ge(capital_start)
                     .bitand(needle_char.simd_le(capital_end));
@@ -99,7 +100,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                     let prefix_mask = Mask::splat(j == 1);
 
                     // Load chunk and remove casing
-                    let cased_haystack_simd = Simd::<#score_type, SIMD_WIDTH>::from_slice(&haystack[j - 1]);
+                    let cased_haystack_simd = Simd::<#score_type, #simd_width>::from_slice(&haystack[j - 1]);
                     let capital_mask = cased_haystack_simd
                         .simd_ge(capital_start)
                         .bitand(cased_haystack_simd.simd_le(capital_end));
@@ -164,8 +165,8 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                 prev_col_score_simds = curr_col_score_simds;
             }
 
-            let mut max_scores_vec = [0; SIMD_WIDTH];
-            for i in 0..SIMD_WIDTH {
+            let mut max_scores_vec = [0; #simd_width];
+            for i in 0..#simd_width {
                 max_scores_vec[i] = all_time_max_score[i] as u16;
                 if haystacks[i] == needle_str {
                     max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
