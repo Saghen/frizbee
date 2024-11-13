@@ -66,6 +66,7 @@ pub fn smith_waterman(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
     let comma_delimiter = Simd::splat(",".bytes().next().unwrap() as u16);
     let underscore_delimiter = Simd::splat("_".bytes().next().unwrap() as u16);
     let dash_delimiter = Simd::splat("-".bytes().next().unwrap() as u16);
+    let colon_delimiter = Simd::splat(":".bytes().next().unwrap() as u16);
     let delimiter_bonus = Simd::splat(DELIMITER_BONUS);
 
     // Capitalization
@@ -162,7 +163,8 @@ pub fn smith_waterman(needle: &str, haystacks: &[&str]) -> [u16; SIMD_WIDTH] {
                 .bitor(dot_delimiter.simd_eq(haystack_simd))
                 .bitor(comma_delimiter.simd_eq(haystack_simd))
                 .bitor(underscore_delimiter.simd_eq(haystack_simd))
-                .bitor(dash_delimiter.simd_eq(haystack_simd));
+                .bitor(dash_delimiter.simd_eq(haystack_simd))
+                .bitor(colon_delimiter.simd_eq(haystack_simd));
             // Only enable delimiter bonus if we've seen a non-delimiter char
             delimiter_bonus_enabled_mask =
                 delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
@@ -253,5 +255,10 @@ mod tests {
         assert_eq!(run_single("a", "A"), MATCH_SCORE + PREFIX_BONUS);
         assert_eq!(run_single("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(run_single("D", "forDist"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_prefix_beats_delimiter() {
+        assert!(run_single("swap", "swap(test)") > run_single("swap", "iter_swap(test)"),);
     }
 }

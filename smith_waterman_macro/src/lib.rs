@@ -53,6 +53,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
             let comma_delimiter = Simd::splat(",".bytes().next().unwrap() as #score_type);
             let underscore_delimiter = Simd::splat("_".bytes().next().unwrap() as #score_type);
             let dash_delimiter = Simd::splat("-".bytes().next().unwrap() as #score_type);
+            let colon_delimiter = Simd::splat(":".bytes().next().unwrap() as #score_type);
             let delimiter_bonus = Simd::splat(DELIMITER_BONUS as #score_type);
 
             // Capitalization
@@ -149,7 +150,8 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                         .bitor(dot_delimiter.simd_eq(haystack_simd))
                         .bitor(comma_delimiter.simd_eq(haystack_simd))
                         .bitor(underscore_delimiter.simd_eq(haystack_simd))
-                        .bitor(dash_delimiter.simd_eq(haystack_simd));
+                        .bitor(dash_delimiter.simd_eq(haystack_simd))
+                        .bitor(colon_delimiter.simd_eq(haystack_simd));
                     // Only enable delimiter bonus if we've seen a non-delimiter char
                     delimiter_bonus_enabled_mask =
                         delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
