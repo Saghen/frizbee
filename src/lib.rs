@@ -171,6 +171,7 @@ fn prefilter(needle: &str, haystack: &str) -> bool {
     prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Options {
     /// Populate score matrix and perform traceback to get the indices of the matching characters
     pub indices: bool,
