@@ -14,6 +14,10 @@ nucleo-matcher = "0.3.1"
 name = "lib"
 harness = false
 
+[[bench]]
+name = "smith_waterman"
+harness = false
+
 [dependencies]
 memchr = "2.7.4"
 smith_waterman_macro = { path = "./smith_waterman_macro" }

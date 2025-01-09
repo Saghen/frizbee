@@ -8,12 +8,13 @@ use nucleo_matcher::{
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::path::Path;
 
 fn get_data() -> Vec<String> {
     // Download title.basics.tsv from https://datasets.imdbws.com
-    // and update this path to run benchmarks
-    let path = Path::new("/home/saghen/downloads/title.basics.tsv");
+    // and set the FRIZBEE_BENCH_FILE environment variable to its path to run benchmarks
+    let path = std::env::var("FRIZBEE_BENCH_FILE")
+        .unwrap_or("/home/saghen/downloads/title.basics.tsv".to_string());
+
     let file = File::open(path).unwrap();
     let reader = io::BufReader::new(file);
 
