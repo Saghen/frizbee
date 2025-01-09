@@ -1,4 +1,4 @@
-#![feature(portable_simd)]
+#![feature(portable_simd, generic_const_exprs)]
 
 extern crate memchr;
 
@@ -9,7 +9,7 @@ pub mod score_matrix;
 pub mod simd;
 
 use crate::score_matrix::*;
-use bucket::Bucket;
+use bucket::{Bucket, FixedWidthBucket};
 use prefilter::prefilter_ascii;
 use r#const::SIMD_WIDTH;
 use std::cmp::Reverse;
@@ -46,24 +46,24 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
     let needle_lower = needle.to_ascii_lowercase();
     let mut matches = vec![None; haystacks.len()];
 
-    let mut buckets = [
-        Bucket::new(4),
-        Bucket::new(8),
-        Bucket::new(12),
-        Bucket::new(16),
-        Bucket::new(20),
-        Bucket::new(24),
-        Bucket::new(32),
-        Bucket::new(48),
-        Bucket::new(64),
-        Bucket::new(96),
-        Bucket::new(128),
-        Bucket::new(160),
-        Bucket::new(192),
-        Bucket::new(224),
-        Bucket::new(256),
-        Bucket::new(384),
-        Bucket::new(512),
+    let mut buckets: [Box<dyn Bucket>; 17] = [
+        Box::new(FixedWidthBucket::<4>::new()),
+        Box::new(FixedWidthBucket::<8>::new()),
+        Box::new(FixedWidthBucket::<12>::new()),
+        Box::new(FixedWidthBucket::<16>::new()),
+        Box::new(FixedWidthBucket::<20>::new()),
+        Box::new(FixedWidthBucket::<24>::new()),
+        Box::new(FixedWidthBucket::<32>::new()),
+        Box::new(FixedWidthBucket::<48>::new()),
+        Box::new(FixedWidthBucket::<64>::new()),
+        Box::new(FixedWidthBucket::<96>::new()),
+        Box::new(FixedWidthBucket::<128>::new()),
+        Box::new(FixedWidthBucket::<160>::new()),
+        Box::new(FixedWidthBucket::<192>::new()),
+        Box::new(FixedWidthBucket::<224>::new()),
+        Box::new(FixedWidthBucket::<256>::new()),
+        Box::new(FixedWidthBucket::<384>::new()),
+        Box::new(FixedWidthBucket::<512>::new()),
     ];
 
     for (i, haystack) in haystacks.iter().enumerate() {
