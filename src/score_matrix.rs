@@ -68,24 +68,10 @@ pub fn smith_waterman_with_scoring_matrix(
     let match_score = Simd::splat(MATCH_SCORE as u16);
     let mismatch_score = Simd::splat(MISMATCH_PENALTY as u16);
     let prefix_match_score = Simd::splat(MATCH_SCORE as u16 + PREFIX_BONUS as u16);
-    let first_char_match_score = Simd::splat(MATCH_SCORE as u16 * FIRST_CHAR_MULTIPLIER as u16);
-    let first_char_prefix_match_score =
-        Simd::splat((MATCH_SCORE as u16 + PREFIX_BONUS as u16) * FIRST_CHAR_MULTIPLIER as u16);
 
     let zero: SimdVec = Simd::splat(0);
 
     for i in 1..=needle_len {
-        let match_score = if i == 1 {
-            first_char_match_score
-        } else {
-            match_score
-        };
-        let prefix_match_score = if i == 1 {
-            first_char_prefix_match_score
-        } else {
-            prefix_match_score
-        };
-
         let needle_char = Simd::splat(needle[i - 1]);
         let mut up_score_simd = Simd::splat(0);
         let mut up_gap_penalty_mask = Mask::splat(true);

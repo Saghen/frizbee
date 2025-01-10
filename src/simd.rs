@@ -90,23 +90,8 @@ where
     let match_score = SimdVec::<N>::splat(N::from(MATCH_SCORE));
     let mismatch_score = SimdVec::<N>::splat(N::from(MISMATCH_PENALTY));
     let prefix_match_score = SimdVec::<N>::splat(N::from(MATCH_SCORE + PREFIX_BONUS));
-    let first_char_match_score = SimdVec::<N>::splat(N::from(MATCH_SCORE * FIRST_CHAR_MULTIPLIER));
-    let first_char_prefix_match_score = SimdVec::<N>::splat(N::from(
-        (MATCH_SCORE + PREFIX_BONUS) * FIRST_CHAR_MULTIPLIER,
-    ));
 
     for i in 1..=needle_len {
-        let match_score = if i == 1 {
-            first_char_match_score
-        } else {
-            match_score
-        };
-        let prefix_match_score = if i == 1 {
-            first_char_prefix_match_score
-        } else {
-            prefix_match_score
-        };
-
         let needle_char = SimdVec::<N>::splat(needle[i - 1]);
         let mut up_score_simd = SimdVec::splat(N::ZERO);
         let mut up_gap_penalty_mask: SimdMask<N> = SimdMask::<N>::splat(true);
