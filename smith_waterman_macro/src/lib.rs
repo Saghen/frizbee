@@ -117,7 +117,7 @@ pub fn generate_smith_waterman(input: TokenStream) -> TokenStream {
                     let match_mask = needle_char.simd_eq(haystack_simd);
                     let diag_score = match_mask.select(
                         diag + match_score
-                            + is_delimiter_masks[j - 1].select(delimiter_bonus, zero)
+                            + is_delimiter_masks[j - 1].bitand(delimiter_bonus_enabled_mask).select(delimiter_bonus, zero)
                             // XOR with prefix mask to ignore capitalization on the prefix
                             + capital_mask.bitand(prefix_mask.not()).select(capitalization_bonus, zero)
                             + matched_casing_mask.select(matching_casing_bonus, zero),
