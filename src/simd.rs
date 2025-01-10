@@ -60,7 +60,7 @@ where
     let zero = SimdVec::<N>::splat(N::ZERO);
 
     // State
-    let score_matrix = vec![[SimdVec::<N>::splat(N::ZERO); W + 1]; needle.len() + 1];
+    let mut score_matrix = vec![[SimdVec::<N>::splat(N::ZERO); W + 1]; needle.len() + 1];
     let mut left_gap_penalty_masks = [SimdMask::<N>::splat(true); W];
     let mut all_time_max_score = SimdVec::<N>::splat(N::ZERO);
     let mut all_time_max_score_row = SimdVec::<N>::splat(0.into());
@@ -95,7 +95,7 @@ where
 
     for i in 1..=needle_len {
         let prev_col_scores = score_matrix[i - 1];
-        let mut curr_col_scores = score_matrix[i];
+        let curr_col_scores = &mut score_matrix[i];
 
         let mut up_score_simd = SimdVec::splat(N::ZERO);
         let mut up_gap_penalty_mask: SimdMask<N> = SimdMask::<N>::splat(true);
