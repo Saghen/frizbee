@@ -95,7 +95,7 @@ where
 
     for i in 1..=needle_len {
         let prev_col_scores = score_matrix[i - 1];
-        let mut curr_col_score_simds = score_matrix[i];
+        let mut curr_col_scores = score_matrix[i];
 
         let mut up_score_simd = SimdVec::splat(N::ZERO);
         let mut up_gap_penalty_mask: SimdMask<N> = SimdMask::<N>::splat(true);
@@ -166,7 +166,7 @@ where
 
             // Store the scores for the next iterations
             up_score_simd = max_score;
-            curr_col_score_simds[j] = max_score;
+            curr_col_scores[j] = max_score;
 
             // Store the maximum score across all runs
             // TODO: shouldn't we only care about the max score of the final column?
@@ -230,6 +230,7 @@ mod tests {
             3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]
