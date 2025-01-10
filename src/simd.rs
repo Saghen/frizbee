@@ -37,7 +37,8 @@ where
         + std::simd::cmp::SimdPartialEq<Mask = SimdMask<N>>
         + std::simd::cmp::SimdOrd<Mask = SimdMask<N>>
         + std::simd::num::SimdUint,
-    SimdMask<N>: std::ops::BitAnd<Output = SimdMask<N>>
+    SimdMask<N>: std::ops::Not<Output = SimdMask<N>>
+        + std::ops::BitAnd<Output = SimdMask<N>>
         + std::ops::BitOr<Output = SimdMask<N>>
         + std::simd::cmp::SimdPartialEq<Mask = SimdMask<N>>,
 {
@@ -108,9 +109,9 @@ where
 
         let needle_char = SimdVec::<N>::splat(needle[i - 1]);
         let mut up_score_simd = SimdVec::splat(N::ZERO);
-        let mut up_gap_penalty_mask = SimdMask::<N>::splat(true);
+        let mut up_gap_penalty_mask: SimdMask<N> = SimdMask::<N>::splat(true);
         let mut curr_col_score_simds: [SimdVec<N>; W + 1] = [SimdVec::<N>::splat(N::ZERO); W + 1];
-        let needle_cased_mask = needle_char
+        let needle_cased_mask: SimdMask<N> = needle_char
             .simd_ge(capital_start)
             .bitand(needle_char.simd_le(capital_end));
         let needle_char = needle_char | needle_cased_mask.select(to_lowercase_mask, zero);
@@ -120,7 +121,7 @@ where
 
             // Load chunk and remove casing
             let cased_haystack_simd = SimdVec::<N>::from_slice(&haystack[j - 1]);
-            let capital_mask = cased_haystack_simd
+            let capital_mask: SimdMask<N> = cased_haystack_simd
                 .simd_ge(capital_start)
                 .bitand(cased_haystack_simd.simd_le(capital_end));
             let haystack_simd = cased_haystack_simd | capital_mask.select(to_lowercase_mask, zero);
@@ -162,14 +163,13 @@ where
             left_gap_penalty_masks[j - 1] = max_score.simd_ne(left_score).bitor(diag_mask);
 
             // Update delimiter masks
-            is_delimiter_masks[j] = space_delimiter
-                .simd_eq(haystack_simd)
-                .bitor(slash_delimiter.simd_eq(haystack_simd))
-                .bitor(dot_delimiter.simd_eq(haystack_simd))
-                .bitor(comma_delimiter.simd_eq(haystack_simd))
-                .bitor(underscore_delimiter.simd_eq(haystack_simd))
-                .bitor(dash_delimiter.simd_eq(haystack_simd))
-                .bitor(colon_delimiter.simd_eq(haystack_simd));
+            is_delimiter_masks[j] = space_delimiter.simd_eq(haystack_simd)
+                | slash_delimiter.simd_eq(haystack_simd)
+                | dot_delimiter.simd_eq(haystack_simd)
+                | comma_delimiter.simd_eq(haystack_simd)
+                | underscore_delimiter.simd_eq(haystack_simd)
+                | dash_delimiter.simd_eq(haystack_simd)
+                | colon_delimiter.simd_eq(haystack_simd);
             // Only enable delimiter bonus if we've seen a non-delimiter char
             delimiter_bonus_enabled_mask =
                 delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
