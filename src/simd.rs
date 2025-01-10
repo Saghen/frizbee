@@ -60,9 +60,11 @@ where
     let zero = SimdVec::<N>::splat(N::ZERO);
 
     // State
-    let mut prev_col_score_simds = [SimdVec::<N>::splat(N::ZERO); W + 1];
+    let score_matrix = vec![[SimdVec::<N>::splat(N::ZERO); W + 1]; needle.len() + 1];
     let mut left_gap_penalty_masks = [SimdMask::<N>::splat(true); W];
     let mut all_time_max_score = SimdVec::<N>::splat(N::ZERO);
+    let mut all_time_max_score_row = SimdVec::<N>::splat(0.into());
+    let mut all_time_max_score_col = SimdVec::<N>::splat(0.into());
 
     // Delimiters
     let mut delimiter_bonus_enabled_mask = SimdMask::<N>::splat(false);
@@ -92,10 +94,13 @@ where
     let prefix_match_score = SimdVec::<N>::splat(N::from(MATCH_SCORE + PREFIX_BONUS));
 
     for i in 1..=needle_len {
-        let needle_char = SimdVec::<N>::splat(needle[i - 1]);
+        let prev_col_scores = score_matrix[i - 1];
+        let mut curr_col_score_simds = score_matrix[i];
+
         let mut up_score_simd = SimdVec::splat(N::ZERO);
         let mut up_gap_penalty_mask: SimdMask<N> = SimdMask::<N>::splat(true);
-        let mut curr_col_score_simds: [SimdVec<N>; W + 1] = [SimdVec::<N>::splat(N::ZERO); W + 1];
+
+        let needle_char = SimdVec::<N>::splat(needle[i - 1]);
         let needle_cased_mask: SimdMask<N> = needle_char
             .simd_ge(capital_start)
             .bitand(needle_char.simd_le(capital_end));
@@ -117,7 +122,7 @@ where
             let match_score = prefix_mask.select(prefix_match_score, match_score);
 
             // Calculate diagonal (match/mismatch) scores
-            let diag = prev_col_score_simds[j - 1];
+            let diag = prev_col_scores[j - 1];
             let match_mask = needle_char.simd_eq(haystack_simd);
             let diag_score = match_mask.select(
                 diag + match_score
@@ -128,12 +133,12 @@ where
                 diag.saturating_sub(mismatch_score),
             );
 
-            // Load and calculate up scores
+            // Load and calculate up scores (skipping char in haystack)
             let up_gap_penalty = up_gap_penalty_mask.select(gap_open_penalty, gap_extend_penalty);
             let up_score = up_score_simd.saturating_sub(up_gap_penalty);
 
-            // Load and calculate left scores
-            let left = prev_col_score_simds[j];
+            // Load and calculate left scores (skipping char in needle)
+            let left = prev_col_scores[j];
             let left_gap_penalty_mask = left_gap_penalty_masks[j - 1];
             let left_gap_penalty =
                 left_gap_penalty_mask.select(gap_open_penalty, gap_extend_penalty);
@@ -164,10 +169,20 @@ where
             curr_col_score_simds[j] = max_score;
 
             // Store the maximum score across all runs
+            // TODO: shouldn't we only care about the max score of the final column?
+            // since we want to match the entire needle to see how many typos there are
+            let all_time_max_score_mask = all_time_max_score.simd_lt(max_score);
+            // TODO: must guarantee that needle.len() < 2 ** (8 || 16)
+            all_time_max_score_col = all_time_max_score_mask.select(
+                SimdVec::<N>::splat(N::from(i.try_into().unwrap())),
+                all_time_max_score_col,
+            );
+            all_time_max_score_row = all_time_max_score_mask.select(
+                SimdVec::<N>::splat(N::from(j.try_into().unwrap())),
+                all_time_max_score_row,
+            );
             all_time_max_score = all_time_max_score.simd_max(max_score);
         }
-
-        prev_col_score_simds = curr_col_score_simds;
     }
 
     let mut max_scores_vec = [N::ZERO; N::SIMD_WIDTH];
