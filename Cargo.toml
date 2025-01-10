@@ -7,13 +7,17 @@ edition = "2021"
 lto = true
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 nucleo-matcher = "0.3.1"
+smith_waterman_macro = { path = "./smith_waterman_macro" }
 
 [[bench]]
 name = "lib"
 harness = false
 
+[[bench]]
+name = "smith_waterman"
+harness = false
+
 [dependencies]
 memchr = "2.7.4"
-smith_waterman_macro = { path = "./smith_waterman_macro" }
