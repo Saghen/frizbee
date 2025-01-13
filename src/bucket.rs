@@ -1,4 +1,4 @@
-use crate::simd::smith_waterman;
+use crate::simd::{smith_waterman, SimdNum};
 use crate::Match;
 
 pub(crate) trait Bucket<'a> {
@@ -8,31 +8,38 @@ pub(crate) trait Bucket<'a> {
     fn reset(&mut self);
 }
 
-pub(crate) struct FixedWidthBucket<'a, const W: usize> {
-    width: usize,
+pub(crate) struct FixedWidthBucket<'a, N: SimdNum, const W: usize>
+where
+    [(); N::SIMD_WIDTH]: Sized,
+{
     length: usize,
-    haystacks: [&'a str; 16],
-    idxs: [usize; 16],
+    haystacks: [&'a str; N::SIMD_WIDTH],
+    idxs: [usize; N::SIMD_WIDTH],
 }
 
-impl<const W: usize> FixedWidthBucket<'_, W> {
+impl<N: SimdNum, const W: usize> FixedWidthBucket<'_, N, W>
+where
+    [(); N::SIMD_WIDTH]: Sized,
+{
     pub fn new() -> Self {
         FixedWidthBucket {
-            width: if W <= 24 { 16 } else { 8 },
             length: 0,
-            haystacks: [""; 16],
-            idxs: [0; 16],
+            haystacks: [""; N::SIMD_WIDTH],
+            idxs: [0; N::SIMD_WIDTH],
         }
     }
 }
 
-impl<'a, const W: usize> Bucket<'a> for FixedWidthBucket<'a, W>
+impl<'a, N: SimdNum, const W: usize> Bucket<'a> for FixedWidthBucket<'a, N, W>
 where
-    [(); W + 1]:,
+    [(); W + 1]: Sized,
+    std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
+    std::simd::Simd<N, { N::SIMD_WIDTH }>: crate::simd::SimdVec<N>,
+    std::simd::Mask<N::Mask, { N::SIMD_WIDTH }>: crate::simd::SimdMask<N>,
 {
     fn add_haystack(&mut self, haystack: &'a str, idx: usize) {
         assert!(haystack.len() <= W);
-        if self.length == self.width {
+        if self.length == N::SIMD_WIDTH {
             return;
         }
         self.haystacks[self.length] = haystack;
@@ -41,7 +48,7 @@ where
     }
 
     fn is_full(&self) -> bool {
-        self.length == self.width
+        self.length == N::SIMD_WIDTH
     }
 
     fn process(&mut self, matches: &mut [Option<Match>], needle: &str, _with_indices: bool) {
@@ -49,12 +56,7 @@ where
             return;
         }
 
-        let scores: &[u16] = if W <= 24 {
-            &smith_waterman::<u8, W>(needle, &self.haystacks)
-        } else {
-            &smith_waterman::<u16, W>(needle, &self.haystacks)
-        };
-
+        let scores: &[u16] = &smith_waterman::<N, W>(needle, &self.haystacks);
         for idx in 0..self.length {
             let score_idx = self.idxs[idx];
             matches[score_idx] = Some(Match {

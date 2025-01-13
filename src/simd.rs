@@ -64,7 +64,7 @@ where
     std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
     Simd<N, { N::SIMD_WIDTH }>: SimdVec<N>,
     Mask<N::Mask, { N::SIMD_WIDTH }>: SimdMask<N>,
-    [(); W + 1]:,
+    [(); W + 1]: Sized,
 {
     let needle_str = needle;
     let needle: Vec<N> = needle.as_bytes().iter().map(|x| N::from(*x)).collect();
