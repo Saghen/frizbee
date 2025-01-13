@@ -1,5 +1,5 @@
 use crate::r#const::*;
-use std::ops::{BitAnd, BitOr, Not};
+use std::ops::Not;
 use std::simd::num::SimdUint;
 use std::simd::{cmp::*, SimdElement};
 use std::simd::{Mask, Simd};
@@ -15,32 +15,55 @@ pub trait SimdNum:
     const ZERO: Self;
     const SIMD_WIDTH: usize;
 }
-type SimdVec<N: SimdNum> = Simd<N, { N::SIMD_WIDTH }>;
-type SimdMask<N: SimdNum> = Mask<<N as SimdElement>::Mask, { N::SIMD_WIDTH }>;
+
+pub trait SimdVec<N: SimdNum>:
+    Sized
+    + Copy
+    + std::ops::Add<Output = Simd<N, { N::SIMD_WIDTH }>>
+    + std::ops::BitOr<Output = Simd<N, { N::SIMD_WIDTH }>>
+    + std::simd::cmp::SimdPartialEq<Mask = Mask<<N as SimdElement>::Mask, { N::SIMD_WIDTH }>>
+    + std::simd::cmp::SimdOrd
+    + std::simd::num::SimdUint
+where
+    N: SimdNum,
+    N::Mask: std::simd::MaskElement,
+    std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
+{
+}
+
+pub trait SimdMask<N: SimdNum>:
+    Sized
+    + Copy
+    + std::ops::Not<Output = Mask<N::Mask, { N::SIMD_WIDTH }>>
+    + std::ops::BitAnd<Output = Mask<N::Mask, { N::SIMD_WIDTH }>>
+    + std::ops::BitOr<Output = Mask<N::Mask, { N::SIMD_WIDTH }>>
+    + std::simd::cmp::SimdPartialEq<Mask = Mask<<N as SimdElement>::Mask, { N::SIMD_WIDTH }>>
+where
+    std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
+{
+}
 
 impl SimdNum for u8 {
     const ZERO: Self = 0;
     const SIMD_WIDTH: usize = 16;
 }
+impl SimdVec<u8> for Simd<u8, { <u8 as SimdNum>::SIMD_WIDTH }> {}
+impl SimdMask<u8> for Mask<<u8 as SimdElement>::Mask, { <u8 as SimdNum>::SIMD_WIDTH }> {}
+
 impl SimdNum for u16 {
     const ZERO: Self = 0;
     const SIMD_WIDTH: usize = 8;
 }
+impl SimdVec<u16> for Simd<u16, { <u16 as SimdNum>::SIMD_WIDTH }> {}
+impl SimdMask<u16> for Mask<<u16 as SimdElement>::Mask, { <u16 as SimdNum>::SIMD_WIDTH }> {}
 
 pub fn smith_waterman<N, const W: usize>(needle: &str, haystacks: &[&str]) -> [N; N::SIMD_WIDTH]
 where
     N: SimdNum,
     std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
+    Simd<N, { N::SIMD_WIDTH }>: SimdVec<N>,
+    Mask<N::Mask, { N::SIMD_WIDTH }>: SimdMask<N>,
     [(); W + 1]:,
-    SimdVec<N>: std::ops::Add<Output = SimdVec<N>>
-        + std::ops::BitOr<Output = SimdVec<N>>
-        + std::simd::cmp::SimdPartialEq<Mask = SimdMask<N>>
-        + std::simd::cmp::SimdOrd<Mask = SimdMask<N>>
-        + std::simd::num::SimdUint,
-    SimdMask<N>: std::ops::Not<Output = SimdMask<N>>
-        + std::ops::BitAnd<Output = SimdMask<N>>
-        + std::ops::BitOr<Output = SimdMask<N>>
-        + std::simd::cmp::SimdPartialEq<Mask = SimdMask<N>>,
 {
     let needle_str = needle;
     let needle: Vec<N> = needle.as_bytes().iter().map(|x| N::from(*x)).collect();
@@ -57,63 +80,62 @@ where
         }
     }
 
-    let zero = SimdVec::<N>::splat(N::ZERO);
+    let zero = Simd::splat(N::ZERO);
 
     // State
-    let mut score_matrix = vec![[SimdVec::<N>::splat(N::ZERO); W + 1]; needle.len() + 1];
-    let mut left_gap_penalty_masks = [SimdMask::<N>::splat(true); W];
-    let mut all_time_max_score = SimdVec::<N>::splat(N::ZERO);
-    let mut all_time_max_score_row = SimdVec::<N>::splat(0.into());
-    let mut all_time_max_score_col = SimdVec::<N>::splat(0.into());
+    let mut score_matrix = vec![[Simd::splat(N::ZERO); W + 1]; needle.len() + 1];
+    let mut left_gap_penalty_masks = [Mask::splat(true); W];
+    let mut all_time_max_score = Simd::splat(N::ZERO);
+    let mut all_time_max_score_row = Simd::splat(0.into());
+    let mut all_time_max_score_col = Simd::splat(0.into());
 
     // Delimiters
-    let mut delimiter_bonus_enabled_mask = SimdMask::<N>::splat(false);
-    let mut is_delimiter_masks = [SimdMask::<N>::splat(false); W + 1];
-    let space_delimiter = SimdVec::<N>::splat(N::from(b' '));
-    let slash_delimiter = SimdVec::<N>::splat(N::from(b'/'));
-    let dot_delimiter = SimdVec::<N>::splat(N::from(b'.'));
-    let comma_delimiter = SimdVec::<N>::splat(N::from(b','));
-    let underscore_delimiter = SimdVec::<N>::splat(N::from(b'_'));
-    let dash_delimiter = SimdVec::<N>::splat(N::from(b'-'));
-    let colon_delimiter = SimdVec::<N>::splat(N::from(b':'));
-    let delimiter_bonus = SimdVec::<N>::splat(N::from(DELIMITER_BONUS));
+    let mut delimiter_bonus_enabled_mask = Mask::splat(false);
+    let mut is_delimiter_masks = [Mask::splat(false); W + 1];
+    let space_delimiter = Simd::splat(N::from(b' '));
+    let slash_delimiter = Simd::splat(N::from(b'/'));
+    let dot_delimiter = Simd::splat(N::from(b'.'));
+    let comma_delimiter = Simd::splat(N::from(b','));
+    let underscore_delimiter = Simd::splat(N::from(b'_'));
+    let dash_delimiter = Simd::splat(N::from(b'-'));
+    let colon_delimiter = Simd::splat(N::from(b':'));
+    let delimiter_bonus = Simd::splat(N::from(DELIMITER_BONUS));
 
     // Capitalization
-    let capital_start = SimdVec::<N>::splat(N::from(b'A'));
-    let capital_end = SimdVec::<N>::splat(N::from(b'Z'));
-    let capitalization_bonus = SimdVec::<N>::splat(N::from(CAPITALIZATION_BONUS));
-    let matching_casing_bonus = SimdVec::<N>::splat(N::from(MATCHING_CASE_BONUS));
-    let to_lowercase_mask = SimdVec::<N>::splat(N::from(0x20));
+    let capital_start = Simd::splat(N::from(b'A'));
+    let capital_end = Simd::splat(N::from(b'Z'));
+    let capitalization_bonus = Simd::splat(N::from(CAPITALIZATION_BONUS));
+    let matching_casing_bonus = Simd::splat(N::from(MATCHING_CASE_BONUS));
+    let to_lowercase_mask = Simd::splat(N::from(0x20));
 
     // Scoring params
-    let gap_open_penalty = SimdVec::<N>::splat(N::from(GAP_OPEN_PENALTY));
-    let gap_extend_penalty = SimdVec::<N>::splat(N::from(GAP_EXTEND_PENALTY));
+    let gap_open_penalty = Simd::splat(N::from(GAP_OPEN_PENALTY));
+    let gap_extend_penalty = Simd::splat(N::from(GAP_EXTEND_PENALTY));
 
-    let match_score = SimdVec::<N>::splat(N::from(MATCH_SCORE));
-    let mismatch_score = SimdVec::<N>::splat(N::from(MISMATCH_PENALTY));
-    let prefix_match_score = SimdVec::<N>::splat(N::from(MATCH_SCORE + PREFIX_BONUS));
+    let match_score = Simd::splat(N::from(MATCH_SCORE));
+    let mismatch_score = Simd::splat(N::from(MISMATCH_PENALTY));
+    let prefix_match_score = Simd::splat(N::from(MATCH_SCORE + PREFIX_BONUS));
 
     for i in 1..=needle_len {
         let prev_col_scores = score_matrix[i - 1];
         let curr_col_scores = &mut score_matrix[i];
 
-        let mut up_score_simd = SimdVec::splat(N::ZERO);
-        let mut up_gap_penalty_mask: SimdMask<N> = SimdMask::<N>::splat(true);
+        let mut up_score_simd = Simd::splat(N::ZERO);
+        let mut up_gap_penalty_mask = Mask::splat(true);
 
-        let needle_char = SimdVec::<N>::splat(needle[i - 1]);
-        let needle_cased_mask: SimdMask<N> = needle_char
-            .simd_ge(capital_start)
-            .bitand(needle_char.simd_le(capital_end));
+        let needle_char = Simd::splat(needle[i - 1]);
+        let needle_cased_mask: Mask<N::Mask, { N::SIMD_WIDTH }> =
+            needle_char.simd_ge(capital_start) & needle_char.simd_le(capital_end);
         let needle_char = needle_char | needle_cased_mask.select(to_lowercase_mask, zero);
 
         for j in 1..=haystack_len {
-            let prefix_mask = SimdMask::<N>::splat(j == 1);
+            let prefix_mask = Mask::splat(j == 1);
 
             // Load chunk and remove casing
-            let cased_haystack_simd = SimdVec::<N>::from_slice(&haystack[j - 1]);
-            let capital_mask: SimdMask<N> = cased_haystack_simd
+            let cased_haystack_simd = Simd::from_slice(&haystack[j - 1]);
+            let capital_mask: Mask<N::Mask, { N::SIMD_WIDTH }> = cased_haystack_simd
                 .simd_ge(capital_start)
-                .bitand(cased_haystack_simd.simd_le(capital_end));
+                & cased_haystack_simd.simd_le(capital_end);
             let haystack_simd = cased_haystack_simd | capital_mask.select(to_lowercase_mask, zero);
 
             let matched_casing_mask = needle_cased_mask.simd_eq(capital_mask);
@@ -123,12 +145,12 @@ where
 
             // Calculate diagonal (match/mismatch) scores
             let diag = prev_col_scores[j - 1];
-            let match_mask = needle_char.simd_eq(haystack_simd);
-            let diag_score = match_mask.select(
+            let match_mask: Mask<N::Mask, { N::SIMD_WIDTH }> = needle_char.simd_eq(haystack_simd);
+            let diag_score: Simd<N, { N::SIMD_WIDTH }> = match_mask.select(
                 diag + match_score
-                    + is_delimiter_masks[j - 1].bitand(delimiter_bonus_enabled_mask).select(delimiter_bonus, zero)
+                    + (is_delimiter_masks[j - 1] & delimiter_bonus_enabled_mask).select(delimiter_bonus, zero)
                     // XOR with prefix mask to ignore capitalization on the prefix
-                    + capital_mask.bitand(prefix_mask.not()).select(capitalization_bonus, zero)
+                    + (capital_mask & prefix_mask.not()).select(capitalization_bonus, zero)
                     + matched_casing_mask.select(matching_casing_bonus, zero),
                 diag.saturating_sub(mismatch_score),
             );
@@ -148,9 +170,9 @@ where
             let max_score = diag_score.simd_max(up_score).simd_max(left_score);
 
             // Update gap penalty mask
-            let diag_mask = max_score.simd_eq(diag_score);
-            up_gap_penalty_mask = max_score.simd_ne(up_score).bitor(diag_mask);
-            left_gap_penalty_masks[j - 1] = max_score.simd_ne(left_score).bitor(diag_mask);
+            let diag_mask: Mask<N::Mask, { N::SIMD_WIDTH }> = max_score.simd_eq(diag_score);
+            up_gap_penalty_mask = max_score.simd_ne(up_score) | diag_mask;
+            left_gap_penalty_masks[j - 1] = max_score.simd_ne(left_score) | diag_mask;
 
             // Update delimiter masks
             is_delimiter_masks[j] = space_delimiter.simd_eq(haystack_simd)
@@ -161,8 +183,7 @@ where
                 | dash_delimiter.simd_eq(haystack_simd)
                 | colon_delimiter.simd_eq(haystack_simd);
             // Only enable delimiter bonus if we've seen a non-delimiter char
-            delimiter_bonus_enabled_mask =
-                delimiter_bonus_enabled_mask.bitor(is_delimiter_masks[j].not());
+            delimiter_bonus_enabled_mask |= is_delimiter_masks[j].not();
 
             // Store the scores for the next iterations
             up_score_simd = max_score;
@@ -171,14 +192,15 @@ where
             // Store the maximum score across all runs
             // TODO: shouldn't we only care about the max score of the final column?
             // since we want to match the entire needle to see how many typos there are
-            let all_time_max_score_mask = all_time_max_score.simd_lt(max_score);
+            let all_time_max_score_mask: Mask<N::Mask, { N::SIMD_WIDTH }> =
+                all_time_max_score.simd_lt(max_score);
             // TODO: must guarantee that needle.len() < 2 ** (8 || 16)
             all_time_max_score_col = all_time_max_score_mask.select(
-                SimdVec::<N>::splat(N::from(i.try_into().unwrap())),
+                Simd::splat(N::from(i.try_into().unwrap())),
                 all_time_max_score_col,
             );
             all_time_max_score_row = all_time_max_score_mask.select(
-                SimdVec::<N>::splat(N::from(j.try_into().unwrap())),
+                Simd::splat(N::from(j.try_into().unwrap())),
                 all_time_max_score_row,
             );
             all_time_max_score = all_time_max_score.simd_max(max_score);
