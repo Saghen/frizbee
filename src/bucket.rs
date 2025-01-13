@@ -49,28 +49,20 @@ where
             return;
         }
 
-        if W <= 24 {
-            let scores = smith_waterman::<u8, W>(needle, &self.haystacks);
-            for idx in 0..self.length {
-                let score_idx = self.idxs[idx];
-                matches[score_idx] = Some(Match {
-                    index_in_haystack: score_idx,
-                    index: score_idx,
-                    score: scores[idx] as u16,
-                    indices: None, //indices: bucket_indices.get(idx).cloned(),
-                });
-            }
+        let scores: &[u16] = if W <= 24 {
+            &smith_waterman::<u8, W>(needle, &self.haystacks)
         } else {
-            let scores = smith_waterman::<u16, W>(needle, &self.haystacks);
-            for idx in 0..self.length {
-                let score_idx = self.idxs[idx];
-                matches[score_idx] = Some(Match {
-                    index_in_haystack: score_idx,
-                    index: score_idx,
-                    score: scores[idx],
-                    indices: None, //indices: bucket_indices.get(idx).cloned(),
-                });
-            }
+            &smith_waterman::<u16, W>(needle, &self.haystacks)
+        };
+
+        for idx in 0..self.length {
+            let score_idx = self.idxs[idx];
+            matches[score_idx] = Some(Match {
+                index_in_haystack: score_idx,
+                index: score_idx,
+                score: scores[idx] as u16,
+                indices: None, //indices: bucket_indices.get(idx).cloned(),
+            });
         }
 
         self.reset();
