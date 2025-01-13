@@ -11,6 +11,7 @@ pub trait SimdNum:
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
     + std::convert::From<u8>
+    + std::convert::Into<u16>
 {
     const ZERO: Self;
     const SIMD_WIDTH: usize;
@@ -57,7 +58,7 @@ impl SimdNum for u16 {
 impl SimdVec<u16> for Simd<u16, { <u16 as SimdNum>::SIMD_WIDTH }> {}
 impl SimdMask<u16> for Mask<<u16 as SimdElement>::Mask, { <u16 as SimdNum>::SIMD_WIDTH }> {}
 
-pub fn smith_waterman<N, const W: usize>(needle: &str, haystacks: &[&str]) -> [N; N::SIMD_WIDTH]
+pub fn smith_waterman<N, const W: usize>(needle: &str, haystacks: &[&str]) -> [u16; N::SIMD_WIDTH]
 where
     N: SimdNum,
     std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
@@ -207,11 +208,11 @@ where
         }
     }
 
-    let mut max_scores_vec = [N::ZERO; N::SIMD_WIDTH];
+    let mut max_scores_vec = [0u16; N::SIMD_WIDTH];
     for i in 0..N::SIMD_WIDTH {
-        max_scores_vec[i] = all_time_max_score[i];
+        max_scores_vec[i] = all_time_max_score[i].into();
         if haystacks[i] == needle_str {
-            max_scores_vec[i] += N::from(EXACT_MATCH_BONUS);
+            max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
         }
     }
     max_scores_vec
@@ -225,7 +226,7 @@ mod tests {
 
     fn run_single(needle: &str, haystack: &str) -> u8 {
         let haystacks = [haystack; SIMD_WIDTH];
-        smith_waterman::<u8, SIMD_WIDTH>(needle, &haystacks)[0]
+        smith_waterman::<u8, SIMD_WIDTH>(needle, &haystacks)[0] as u8
     }
 
     #[test]
