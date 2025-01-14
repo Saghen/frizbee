@@ -10,7 +10,10 @@ pub(crate) trait Bucket<'a> {
     fn reset(&mut self);
 }
 
-pub(crate) struct FixedWidthBucket<'a, N: SimdNum<L>, const W: usize, const L: usize> {
+pub(crate) struct FixedWidthBucket<'a, N: SimdNum<L>, const W: usize, const L: usize>
+where
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+{
     length: usize,
     haystacks: [&'a str; L],
     idxs: [usize; L],
