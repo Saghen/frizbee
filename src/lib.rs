@@ -5,6 +5,7 @@ extern crate memchr;
 mod bucket;
 pub mod r#const;
 mod prefilter;
+mod reference;
 pub mod score_matrix;
 pub mod simd;
 
