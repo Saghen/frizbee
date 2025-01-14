@@ -1,4 +1,4 @@
-#![feature(portable_simd, generic_const_exprs)]
+#![feature(portable_simd)]
 
 extern crate memchr;
 
