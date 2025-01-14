@@ -66,17 +66,16 @@ where
     Mask<N::Mask, L>: SimdMask<N, L>,
 {
     let needle_str = needle;
-    let needle: Vec<N> = needle.as_bytes().iter().map(|x| N::from(*x)).collect();
+    let needle: Vec<N> = needle.as_bytes().iter().map(|&x| N::from(x)).collect();
     let needle_len = needle.len();
-    let haystack_len = haystacks.iter().map(|x| x.len()).max().unwrap();
+    let haystack_len = haystacks.iter().map(|&x| x.len()).max().unwrap();
+    assert!(haystack_len <= W);
 
     // Convert haystacks to a static array of bytes chunked for SIMD
     let mut haystack: [[N; L]; W] = [[N::ZERO; L]; W];
-    for (char_idx, haystack_slice) in haystack.iter_mut().enumerate() {
-        for str_idx in 0..L {
-            if let Some(char) = haystacks[str_idx].as_bytes().get(char_idx) {
-                haystack_slice[str_idx] = N::from(*char);
-            }
+    for (str_idx, &haystack_str) in haystacks.iter().enumerate() {
+        for (char_idx, &haystack_char) in haystack_str.as_bytes().iter().enumerate() {
+            haystack[char_idx][str_idx] = N::from(haystack_char);
         }
     }
 
