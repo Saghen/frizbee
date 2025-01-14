@@ -4,7 +4,7 @@ use std::simd::num::SimdUint;
 use std::simd::{cmp::*, SimdElement};
 use std::simd::{Mask, Simd};
 
-pub trait SimdNum:
+pub trait SimdNum<const L: usize>:
     Sized
     + Copy
     + std::simd::SimdElement
@@ -14,57 +14,57 @@ pub trait SimdNum:
     + std::convert::Into<u16>
 {
     const ZERO: Self;
-    const SIMD_WIDTH: usize;
 }
 
-pub trait SimdVec<N: SimdNum>:
+pub trait SimdVec<N: SimdNum<L>, const L: usize>:
     Sized
     + Copy
-    + std::ops::Add<Output = Simd<N, { N::SIMD_WIDTH }>>
-    + std::ops::BitOr<Output = Simd<N, { N::SIMD_WIDTH }>>
-    + std::simd::cmp::SimdPartialEq<Mask = Mask<<N as SimdElement>::Mask, { N::SIMD_WIDTH }>>
+    + std::ops::Add<Output = Simd<N, L>>
+    + std::ops::BitOr<Output = Simd<N, L>>
+    + std::simd::cmp::SimdPartialEq<Mask = Mask<<N as SimdElement>::Mask, L>>
     + std::simd::cmp::SimdOrd
     + std::simd::num::SimdUint
 where
-    N: SimdNum,
+    N: SimdNum<L>,
     N::Mask: std::simd::MaskElement,
-    std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
 }
 
-pub trait SimdMask<N: SimdNum>:
+pub trait SimdMask<N: SimdNum<L>, const L: usize>:
     Sized
     + Copy
-    + std::ops::Not<Output = Mask<N::Mask, { N::SIMD_WIDTH }>>
-    + std::ops::BitAnd<Output = Mask<N::Mask, { N::SIMD_WIDTH }>>
-    + std::ops::BitOr<Output = Mask<N::Mask, { N::SIMD_WIDTH }>>
-    + std::simd::cmp::SimdPartialEq<Mask = Mask<<N as SimdElement>::Mask, { N::SIMD_WIDTH }>>
+    + std::ops::Not<Output = Mask<N::Mask, L>>
+    + std::ops::BitAnd<Output = Mask<N::Mask, L>>
+    + std::ops::BitOr<Output = Mask<N::Mask, L>>
+    + std::simd::cmp::SimdPartialEq<Mask = Mask<<N as SimdElement>::Mask, L>>
 where
-    std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
 }
 
-impl SimdNum for u8 {
+impl SimdNum<16> for u8 {
     const ZERO: Self = 0;
-    const SIMD_WIDTH: usize = 16;
 }
-impl SimdVec<u8> for Simd<u8, { <u8 as SimdNum>::SIMD_WIDTH }> {}
-impl SimdMask<u8> for Mask<<u8 as SimdElement>::Mask, { <u8 as SimdNum>::SIMD_WIDTH }> {}
+impl SimdVec<u8, 16> for Simd<u8, 16> {}
+impl SimdMask<u8, 16> for Mask<<u8 as SimdElement>::Mask, 16> {}
 
-impl SimdNum for u16 {
+impl SimdNum<8> for u16 {
     const ZERO: Self = 0;
-    const SIMD_WIDTH: usize = 8;
 }
-impl SimdVec<u16> for Simd<u16, { <u16 as SimdNum>::SIMD_WIDTH }> {}
-impl SimdMask<u16> for Mask<<u16 as SimdElement>::Mask, { <u16 as SimdNum>::SIMD_WIDTH }> {}
+impl SimdVec<u16, 8> for Simd<u16, 8> {}
+impl SimdMask<u16, 8> for Mask<<u16 as SimdElement>::Mask, 8> {}
 
-pub fn smith_waterman<N, const W: usize>(needle: &str, haystacks: &[&str]) -> [u16; N::SIMD_WIDTH]
+pub fn smith_waterman<N, const W: usize, const L: usize>(
+    needle: &str,
+    haystacks: &[&str; L],
+) -> [u16; L]
 where
-    N: SimdNum,
-    std::simd::LaneCount<{ N::SIMD_WIDTH }>: std::simd::SupportedLaneCount,
-    Simd<N, { N::SIMD_WIDTH }>: SimdVec<N>,
-    Mask<N::Mask, { N::SIMD_WIDTH }>: SimdMask<N>,
     [(); W + 1]: Sized,
+    N: SimdNum<L>,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+    Simd<N, L>: SimdVec<N, L>,
+    Mask<N::Mask, L>: SimdMask<N, L>,
 {
     let needle_str = needle;
     let needle: Vec<N> = needle.as_bytes().iter().map(|x| N::from(*x)).collect();
@@ -72,9 +72,9 @@ where
     let haystack_len = haystacks.iter().map(|x| x.len()).max().unwrap();
 
     // Convert haystacks to a static array of bytes chunked for SIMD
-    let mut haystack: [[N; N::SIMD_WIDTH]; W] = [[N::ZERO; N::SIMD_WIDTH]; W];
+    let mut haystack: [[N; L]; W] = [[N::ZERO; L]; W];
     for (char_idx, haystack_slice) in haystack.iter_mut().enumerate() {
-        for str_idx in 0..N::SIMD_WIDTH {
+        for str_idx in 0..L {
             if let Some(char) = haystacks[str_idx].as_bytes().get(char_idx) {
                 haystack_slice[str_idx] = N::from(*char);
             }
@@ -125,7 +125,7 @@ where
         let mut up_gap_penalty_mask = Mask::splat(true);
 
         let needle_char = Simd::splat(needle[i - 1]);
-        let needle_cased_mask: Mask<N::Mask, { N::SIMD_WIDTH }> =
+        let needle_cased_mask: Mask<N::Mask, L> =
             needle_char.simd_ge(capital_start) & needle_char.simd_le(capital_end);
         let needle_char = needle_char | needle_cased_mask.select(to_lowercase_mask, zero);
 
@@ -134,8 +134,7 @@ where
 
             // Load chunk and remove casing
             let cased_haystack_simd = Simd::from_slice(&haystack[j - 1]);
-            let capital_mask: Mask<N::Mask, { N::SIMD_WIDTH }> = cased_haystack_simd
-                .simd_ge(capital_start)
+            let capital_mask: Mask<N::Mask, L> = cased_haystack_simd.simd_ge(capital_start)
                 & cased_haystack_simd.simd_le(capital_end);
             let haystack_simd = cased_haystack_simd | capital_mask.select(to_lowercase_mask, zero);
 
@@ -146,8 +145,8 @@ where
 
             // Calculate diagonal (match/mismatch) scores
             let diag = prev_col_scores[j - 1];
-            let match_mask: Mask<N::Mask, { N::SIMD_WIDTH }> = needle_char.simd_eq(haystack_simd);
-            let diag_score: Simd<N, { N::SIMD_WIDTH }> = match_mask.select(
+            let match_mask: Mask<N::Mask, L> = needle_char.simd_eq(haystack_simd);
+            let diag_score: Simd<N, L> = match_mask.select(
                 diag + match_score
                     + (is_delimiter_masks[j - 1] & delimiter_bonus_enabled_mask).select(delimiter_bonus, zero)
                     // XOR with prefix mask to ignore capitalization on the prefix
@@ -171,7 +170,7 @@ where
             let max_score = diag_score.simd_max(up_score).simd_max(left_score);
 
             // Update gap penalty mask
-            let diag_mask: Mask<N::Mask, { N::SIMD_WIDTH }> = max_score.simd_eq(diag_score);
+            let diag_mask: Mask<N::Mask, L> = max_score.simd_eq(diag_score);
             up_gap_penalty_mask = max_score.simd_ne(up_score) | diag_mask;
             left_gap_penalty_masks[j - 1] = max_score.simd_ne(left_score) | diag_mask;
 
@@ -193,8 +192,7 @@ where
             // Store the maximum score across all runs
             // TODO: shouldn't we only care about the max score of the final column?
             // since we want to match the entire needle to see how many typos there are
-            let all_time_max_score_mask: Mask<N::Mask, { N::SIMD_WIDTH }> =
-                all_time_max_score.simd_lt(max_score);
+            let all_time_max_score_mask: Mask<N::Mask, L> = all_time_max_score.simd_lt(max_score);
             // TODO: must guarantee that needle.len() < 2 ** (8 || 16)
             all_time_max_score_col = all_time_max_score_mask.select(
                 Simd::splat(N::from(i.try_into().unwrap())),
@@ -208,8 +206,8 @@ where
         }
     }
 
-    let mut max_scores_vec = [0u16; N::SIMD_WIDTH];
-    for i in 0..N::SIMD_WIDTH {
+    let mut max_scores_vec = [0u16; L];
+    for i in 0..L {
         max_scores_vec[i] = all_time_max_score[i].into();
         if haystacks[i] == needle_str {
             max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
@@ -225,8 +223,8 @@ mod tests {
     const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn run_single(needle: &str, haystack: &str) -> u8 {
-        let haystacks = [haystack; SIMD_WIDTH];
-        smith_waterman::<u8, SIMD_WIDTH>(needle, &haystacks)[0] as u8
+        let haystacks = [haystack; 16];
+        smith_waterman::<u8, 16, 16>(needle, &haystacks)[0] as u8
     }
 
     #[test]
