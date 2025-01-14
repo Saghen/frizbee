@@ -43,17 +43,19 @@ where
 {
 }
 
-impl SimdNum<16> for u8 {
-    const ZERO: Self = 0;
+macro_rules! simd_num_impl {
+    ($type:ident,$($lanes:literal),+) => {
+        $(
+            impl SimdNum<$lanes> for $type {
+                const ZERO: Self = 0;
+            }
+            impl SimdVec<$type, $lanes> for Simd<$type, $lanes> {}
+            impl SimdMask<$type, $lanes> for Mask<<$type as SimdElement>::Mask, $lanes> {}
+        )+
+    };
 }
-impl SimdVec<u8, 16> for Simd<u8, 16> {}
-impl SimdMask<u8, 16> for Mask<<u8 as SimdElement>::Mask, 16> {}
-
-impl SimdNum<8> for u16 {
-    const ZERO: Self = 0;
-}
-impl SimdVec<u16, 8> for Simd<u16, 8> {}
-impl SimdMask<u16, 8> for Mask<<u16 as SimdElement>::Mask, 8> {}
+simd_num_impl!(u8, 1, 2, 4, 8, 16, 32, 64);
+simd_num_impl!(u16, 1, 2, 4, 8, 16, 32);
 
 pub fn smith_waterman<N, const W: usize, const L: usize>(
     needle: &str,
@@ -230,8 +232,7 @@ mod tests {
     const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn run_single(needle: &str, haystack: &str) -> u8 {
-        let haystacks = [haystack; 16];
-        smith_waterman::<u8, 16, 16>(needle, &haystacks)[0] as u8
+        smith_waterman::<u8, 16, 1>(needle, &[haystack; 1])[0] as u8
     }
 
     #[test]
