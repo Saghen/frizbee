@@ -10,10 +10,7 @@ pub(crate) trait Bucket<'a> {
     fn reset(&mut self);
 }
 
-pub(crate) struct FixedWidthBucket<'a, N: SimdNum<L>, const W: usize, const L: usize>
-where
-    [(); L]: Sized,
-{
+pub(crate) struct FixedWidthBucket<'a, N: SimdNum<L>, const W: usize, const L: usize> {
     length: usize,
     haystacks: [&'a str; L],
     idxs: [usize; L],
@@ -39,7 +36,6 @@ where
 
 impl<'a, N: SimdNum<L>, const W: usize, const L: usize> Bucket<'a> for FixedWidthBucket<'a, N, W, L>
 where
-    [(); W + 1]: Sized,
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
     std::simd::Simd<N, L>: crate::simd::SimdVec<N, L>,
