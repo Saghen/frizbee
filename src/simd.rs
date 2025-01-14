@@ -160,7 +160,7 @@ where
         let mut is_delimiter_mask = Mask::splat(false);
 
         for j in 0..haystack_len {
-            let prefix_mask = Mask::splat(j == 0);
+            let is_prefix = j == 0;
 
             // Load chunk and remove casing
             let cased_haystack_simd = Simd::from_slice(&haystack[j]);
@@ -172,24 +172,24 @@ where
             let matched_casing_mask: Mask<N::Mask, L> = needle_cased_mask.simd_eq(capital_mask);
 
             // Give a bonus for prefix matches
-            let match_score = if j == 0 {
+            let match_score = if is_prefix {
                 N::PREFIX_MATCH_SCORE
             } else {
                 N::MATCH_SCORE
             };
 
             // Calculate diagonal (match/mismatch) scores
-            let diag = if j > 0 {
-                prev_col_scores[j - 1]
-            } else {
+            let diag = if is_prefix {
                 N::ZERO_VEC
+            } else {
+                prev_col_scores[j - 1]
             };
             let match_mask: Mask<N::Mask, L> = needle_char.simd_eq(haystack_simd);
             let diag_score: Simd<N, L> = match_mask.select(
                 diag + match_score
                     + (is_delimiter_mask & delimiter_bonus_enabled_mask).select(N::DELIMITER_BONUS, N::ZERO_VEC)
-                    // XOR with prefix mask to ignore capitalization on the prefix
-                    + (capital_mask & prefix_mask.not()).select(N::CAPITALIZATION_BONUS, N::ZERO_VEC)
+                    // ignore capitalization on the prefix
+                    + if is_prefix { capital_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC) } else { N::ZERO_VEC }
                     + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC),
                 diag.saturating_sub(N::MISMATCH_PENALTY),
             );
