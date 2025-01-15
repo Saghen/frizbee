@@ -120,7 +120,7 @@ where
     Mask<N::Mask, L>: SimdMask<N, L>,
 {
     let needle_str = needle;
-    let needle: Vec<N> = needle.as_bytes().iter().map(|&x| N::from(x)).collect();
+    let needle = needle.as_bytes();
     let needle_len = needle.len();
     let haystack_len = haystacks.iter().map(|&x| x.len()).max().unwrap();
     assert!(haystack_len <= W);
@@ -151,7 +151,7 @@ where
         let mut up_score_simd = N::ZERO_VEC;
         let mut up_gap_penalty_mask = Mask::splat(true);
 
-        let needle_char = Simd::splat(needle[i]);
+        let needle_char = Simd::splat(N::from(needle[i]));
         let needle_cased_mask: Mask<N::Mask, L> =
             needle_char.simd_ge(N::CAPITAL_START) & needle_char.simd_le(N::CAPITAL_END);
         let needle_char = needle_char | needle_cased_mask.select(N::TO_LOWERCASE_MASK, N::ZERO_VEC);
