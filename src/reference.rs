@@ -8,7 +8,6 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
 
     // State
     let mut score_matrix = vec![[0; W]; needle.len()];
-    let mut left_gap_penalty_masks = [true; W];
     let mut all_time_max_score = 0;
     let mut all_time_max_score_row = 0;
     let mut all_time_max_score_col = 0;
@@ -46,6 +45,7 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
         let needle_cased_mask = needle_char.is_ascii_uppercase();
         let needle_char = needle_char.to_ascii_lowercase();
 
+        let mut left_gap_penalty_mask = true;
         let mut delimiter_bonus_enabled_mask = false;
         let mut is_delimiter_mask = false;
 
@@ -86,7 +86,7 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
 
             // Load and calculate left scores (skipping char in needle)
             let left = prev_col_scores[j];
-            let left_gap_penalty = if left_gap_penalty_masks[j] {
+            let left_gap_penalty = if left_gap_penalty_mask {
                 gap_open_penalty
             } else {
                 gap_extend_penalty
@@ -99,7 +99,7 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
             // Update gap penalty mask
             let diag_mask = max_score == diag_score;
             up_gap_penalty_mask = max_score != up_score || diag_mask;
-            left_gap_penalty_masks[j] = max_score != left_score || diag_mask;
+            left_gap_penalty_mask = max_score != left_score || diag_mask;
 
             // Update delimiter mask
             is_delimiter_mask = space_delimiter == haystack_simd
