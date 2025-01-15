@@ -135,7 +135,6 @@ where
 
     // State
     let mut score_matrix = vec![[N::ZERO_VEC; W]; needle.len()];
-    let mut left_gap_penalty_masks = [Mask::splat(true); W];
     let mut all_time_max_score = N::ZERO_VEC;
     let mut all_time_max_score_row = N::ZERO_VEC;
     let mut all_time_max_score_col = N::ZERO_VEC;
@@ -156,6 +155,7 @@ where
             needle_char.simd_ge(N::CAPITAL_START) & needle_char.simd_le(N::CAPITAL_END);
         let needle_char = needle_char | needle_cased_mask.select(N::TO_LOWERCASE_MASK, N::ZERO_VEC);
 
+        let mut left_gap_penalty_mask = Mask::splat(true);
         let mut delimiter_bonus_enabled_mask = Mask::splat(false);
         let mut is_delimiter_mask = Mask::splat(false);
 
@@ -201,7 +201,6 @@ where
 
             // Load and calculate left scores (skipping char in needle)
             let left = prev_col_scores[j];
-            let left_gap_penalty_mask = left_gap_penalty_masks[j];
             let left_gap_penalty =
                 left_gap_penalty_mask.select(N::GAP_OPEN_PENALTY, N::GAP_EXTEND_PENALTY);
             let left_score = left.saturating_sub(left_gap_penalty);
@@ -212,7 +211,7 @@ where
             // Update gap penalty mask
             let diag_mask: Mask<N::Mask, L> = max_score.simd_eq(diag_score);
             up_gap_penalty_mask = max_score.simd_ne(up_score) | diag_mask;
-            left_gap_penalty_masks[j] = max_score.simd_ne(left_score) | diag_mask;
+            left_gap_penalty_mask = max_score.simd_ne(left_score) | diag_mask;
 
             // Update delimiter masks
             is_delimiter_mask = N::SPACE_DELIMITER.simd_eq(haystack_simd)
