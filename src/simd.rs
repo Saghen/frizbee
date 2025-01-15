@@ -246,11 +246,11 @@ mod tests {
     fn test_exact_match() {
         assert_eq!(
             run_single("a", "a"),
-            CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
+            CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
         );
         assert_eq!(
             run_single("abc", "abc"),
-            3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
+            3 * CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
         );
         assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
         // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);

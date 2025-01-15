@@ -22,6 +22,6 @@ pub const DELIMITER_BONUS: u8 = 4;
 pub const CAPITALIZATION_BONUS: u8 = 0;
 pub const MATCHING_CASE_BONUS: u8 = 1;
 // bonus for haystack == needle
-pub const EXACT_MATCH_BONUS: u8 = 4;
+pub const EXACT_MATCH_BONUS: u16 = 4;
 
 // TODO: bonus for a full continuous match without gaps?
