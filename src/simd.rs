@@ -100,8 +100,7 @@ macro_rules! simd_num_impl {
                 const MISMATCH_PENALTY: Simd<Self, $lanes> = Simd::from_array([MISMATCH_PENALTY as $type; $lanes]);
                 const PREFIX_MATCH_SCORE: Simd<Self, $lanes> = Simd::from_array([(MATCH_SCORE + PREFIX_BONUS) as $type; $lanes]);
             }
-            impl SimdVec<$type, $lanes> for Simd<$type, $lanes> {
-        }
+            impl SimdVec<$type, $lanes> for Simd<$type, $lanes> {}
             impl SimdMask<$type, $lanes> for Mask<<$type as SimdElement>::Mask, $lanes> {}
         )+
     };
@@ -112,7 +111,7 @@ simd_num_impl!(u16, 1, 2, 4, 8, 16, 32);
 pub fn smith_waterman<N, const W: usize, const L: usize>(
     needle: &str,
     haystacks: &[&str; L],
-) -> [u16; L]
+) -> ([u16; L], [u16; L])
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
@@ -122,6 +121,7 @@ where
     let needle_str = needle;
     let needle = needle.as_bytes();
     let needle_len = needle.len();
+    assert!(needle_len > 0);
     let haystack_len = haystacks.iter().map(|&x| x.len()).max().unwrap();
     assert!(haystack_len <= W);
 
@@ -136,8 +136,6 @@ where
     // State
     let mut score_matrix = vec![[N::ZERO_VEC; W]; needle.len()];
     let mut all_time_max_score = N::ZERO_VEC;
-    let mut all_time_max_score_row = N::ZERO_VEC;
-    let mut all_time_max_score_col = N::ZERO_VEC;
 
     for i in 0..needle_len {
         let prev_col_scores = if i > 0 {
@@ -229,18 +227,6 @@ where
             curr_col_scores[j] = max_score;
 
             // Store the maximum score across all runs
-            // TODO: shouldn't we only care about the max score of the final column?
-            // since we want to match the entire needle to see how many typos there are
-            let all_time_max_score_mask: Mask<N::Mask, L> = all_time_max_score.simd_lt(max_score);
-            // TODO: must guarantee that needle.len() < 2 ** L
-            all_time_max_score_col = all_time_max_score_mask.select(
-                Simd::splat(N::from((i + 1).try_into().unwrap())),
-                all_time_max_score_col,
-            );
-            all_time_max_score_row = all_time_max_score_mask.select(
-                Simd::splat(N::from((j + 1).try_into().unwrap())),
-                all_time_max_score_row,
-            );
             all_time_max_score = all_time_max_score.simd_max(max_score);
         }
     }
@@ -252,7 +238,84 @@ where
             max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
         }
     }
-    max_scores_vec
+
+    (max_scores_vec, typos_from_score_matrix(score_matrix))
+}
+
+pub fn typos_from_score_matrix<N, const W: usize, const L: usize>(
+    score_matrix: Vec<[Simd<N, L>; W]>,
+) -> [u16; L]
+where
+    N: SimdNum<L>,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+    Simd<N, L>: SimdVec<N, L>,
+    Mask<N::Mask, L>: SimdMask<N, L>,
+{
+    let mut typo_count = [0u16; L];
+    let mut scores = [0u16; L];
+    let mut positions = [(0, score_matrix.len() - 1); L];
+
+    // Get the starting position by looking at the last column
+    // (last character of the needle)
+    let last_column = score_matrix.last().unwrap();
+    for idx in 0..W {
+        let row_scores = last_column[idx];
+        for (i, row_score) in row_scores.to_array().iter().enumerate() {
+            let score: u16 = (*row_score).into();
+            if score > scores[i] {
+                scores[i] = score;
+                positions[i] = (idx, score_matrix.len() - 1);
+            }
+        }
+    }
+
+    // Traceback and store the matched indices
+    for (idx, initial_position) in positions.into_iter().enumerate() {
+        let (mut row_idx, mut col_idx) = initial_position;
+        let mut score = scores[idx];
+
+        // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
+        while col_idx > 0 {
+            // Must be moving left
+            if row_idx == 0 {
+                typo_count[idx] += 1;
+                col_idx -= 1;
+                continue;
+            }
+
+            // Gather up the scores for all possible paths
+            let diag = score_matrix[col_idx - 1][row_idx - 1][idx].into();
+            let left = score_matrix[col_idx - 1][row_idx][idx].into();
+            let up = score_matrix[col_idx][row_idx - 1][idx].into();
+
+            // Match or mismatch
+            if diag >= left && diag >= up {
+                // Must be a mismatch
+                if diag >= score {
+                    typo_count[idx] += 1;
+                }
+                row_idx -= 1;
+                col_idx -= 1;
+                score = diag;
+            // Skipped character in needle
+            } else if left >= up {
+                typo_count[idx] += 1;
+                col_idx -= 1;
+                score = left;
+            // Skipped character in haystack
+            } else {
+                row_idx -= 1;
+                score = up;
+            }
+        }
+
+        // HACK: Compensate for the last column being a typo
+        if col_idx == 0 && score == 0 {
+            typo_count[idx] += 1;
+        }
+    }
+
+    typo_count
 }
 
 #[cfg(test)]
@@ -261,69 +324,91 @@ mod tests {
 
     const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
-    fn run_single(needle: &str, haystack: &str) -> u8 {
-        smith_waterman::<u8, 16, 1>(needle, &[haystack; 1])[0] as u8
+    fn get_score(needle: &str, haystack: &str) -> u8 {
+        smith_waterman::<u8, 16, 1>(needle, &[haystack; 1]).0[0] as u8
+    }
+
+    fn get_typos(needle: &str, haystack: &str) -> u16 {
+        smith_waterman::<u8, 4, 1>(needle, &[haystack; 1]).1[0]
     }
 
     #[test]
-    fn test_basic() {
-        assert_eq!(run_single("b", "abc"), CHAR_SCORE);
-        assert_eq!(run_single("c", "abc"), CHAR_SCORE);
+    fn test_score_basic() {
+        assert_eq!(get_score("b", "abc"), CHAR_SCORE);
+        assert_eq!(get_score("c", "abc"), CHAR_SCORE);
     }
 
     #[test]
-    fn test_prefix() {
-        assert_eq!(run_single("a", "abc"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("a", "aabc"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("a", "babc"), CHAR_SCORE);
+    fn test_typos_basic() {
+        assert_eq!(get_typos("a", "abc"), 0);
+        assert_eq!(get_typos("b", "abc"), 0);
+        assert_eq!(get_typos("c", "abc"), 0);
+        assert_eq!(get_typos("ac", "abc"), 0);
+
+        assert_eq!(get_typos("d", "abc"), 1);
+        assert_eq!(get_typos("da", "abc"), 1);
+        assert_eq!(get_typos("dc", "abc"), 1);
+        assert_eq!(get_typos("ad", "abc"), 1);
+        assert_eq!(get_typos("adc", "abc"), 1);
+        assert_eq!(get_typos("add", "abc"), 2);
+        assert_eq!(get_typos("ddd", "abc"), 3);
+        assert_eq!(get_typos("ddd", ""), 3);
+        assert_eq!(get_typos("d", ""), 1);
     }
 
     #[test]
-    fn test_exact_match() {
+    fn test_score_prefix() {
+        assert_eq!(get_score("a", "abc"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "aabc"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "babc"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_score_exact_match() {
         assert_eq!(
-            run_single("a", "a"),
+            get_score("a", "a"),
             CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
         );
         assert_eq!(
-            run_single("abc", "abc"),
+            get_score("abc", "abc"),
             3 * CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
         );
-        assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
         // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]
-    fn test_delimiter() {
-        assert_eq!(run_single("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
-        assert_eq!(run_single("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
-        assert_eq!(run_single("c", "a--bc"), CHAR_SCORE);
-        assert_eq!(run_single("a", "-a--bc"), CHAR_SCORE);
-        assert_eq!(run_single("-", "a-bc"), CHAR_SCORE);
-        assert_eq!(run_single("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
+    fn test_score_delimiter() {
+        assert_eq!(get_score("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("-", "a-bc"), CHAR_SCORE);
+        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
     }
 
     #[test]
-    fn test_affine_gap() {
+    fn test_score_affine_gap() {
         assert_eq!(
-            run_single("test", "Uterst"),
+            get_score("test", "Uterst"),
             CHAR_SCORE * 4 - GAP_OPEN_PENALTY
         );
         assert_eq!(
-            run_single("test", "Uterrst"),
+            get_score("test", "Uterrst"),
             CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
         );
     }
 
     #[test]
-    fn test_capital_bonus() {
-        assert_eq!(run_single("a", "A"), MATCH_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("D", "forDist"), CHAR_SCORE);
+    fn test_score_capital_bonus() {
+        assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("D", "forDist"), CHAR_SCORE);
     }
 
     #[test]
-    fn test_prefix_beats_delimiter() {
-        assert!(run_single("swap", "swap(test)") > run_single("swap", "iter_swap(test)"),);
+    fn test_score_prefix_beats_delimiter() {
+        assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"),);
     }
 }
