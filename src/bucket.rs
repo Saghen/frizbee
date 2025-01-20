@@ -63,7 +63,7 @@ where
             return;
         }
 
-        let scores: &[u16] = &smith_waterman::<N, W, L>(needle, &self.haystacks);
+        let scores: &[u16] = &smith_waterman::<N, W, L>(needle, &self.haystacks).0;
         for idx in 0..self.length {
             let score_idx = self.idxs[idx];
             matches[score_idx] = Some(Match {
