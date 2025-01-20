@@ -7,6 +7,7 @@ use std::simd::{Mask, Simd};
 pub trait SimdNum<const L: usize>:
     Sized
     + Copy
+    + std::fmt::Debug
     + std::simd::SimdElement
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
