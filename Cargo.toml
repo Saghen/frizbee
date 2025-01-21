@@ -10,6 +10,8 @@ lto = true
 criterion = "0.5"
 iai-callgrind = "0.14.0"
 nucleo-matcher = "0.3.1"
+rand = "0.8.5"
+rand_distr = "0.4.3"
 
 [[bench]]
 name = "lib"
