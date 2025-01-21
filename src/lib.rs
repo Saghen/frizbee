@@ -11,7 +11,7 @@ pub mod simd;
 
 use crate::score_matrix::*;
 use bucket::{Bucket, FixedWidthBucket};
-use prefilter::prefilter_ascii;
+use prefilter::{prefilter_ascii, prefilter_ascii_with_typo};
 use r#const::SIMD_WIDTH;
 use std::cmp::Reverse;
 
