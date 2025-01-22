@@ -32,7 +32,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(needle),
                 black_box(&haystack_ref),
                 Options::default(),
-            );
+            )
         })
     });
     c.bench_function("frizbee_0_typos", |b| {
@@ -44,7 +44,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     max_typos: Some(0),
                     ..Default::default()
                 },
-            );
+            )
         })
     });
     c.bench_function("frizbee_1_typos", |b| {
@@ -56,7 +56,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     max_typos: Some(1),
                     ..Default::default()
                 },
-            );
+            )
         })
     });
     c.bench_function("frizbee_2_typos", |b| {
@@ -68,7 +68,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     max_typos: Some(2),
                     ..Default::default()
                 },
-            );
+            )
         })
     });
     c.bench_function("nucleo", |b| {
@@ -80,9 +80,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             AtomKind::Fuzzy,
             false,
         );
-        b.iter(|| {
-            atom.match_list(haystack.iter(), &mut matcher);
-        })
+        b.iter(|| atom.match_list(haystack.iter(), &mut matcher))
     });
 }
 
