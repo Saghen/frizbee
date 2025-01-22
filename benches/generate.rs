@@ -8,25 +8,21 @@ enum MatchType {
 }
 
 pub struct HaystackGenerationOptions {
+    /// Seed for the random number generator to ensure consistent data.
     pub seed: u64,
+    /// Percentage of data that should match partially
     pub partial_match_percentage: f64,
+    /// Percentage of data that should match
     pub match_percentage: f64,
+    /// Median length of the strings
     pub median_length: usize,
+    /// Standard deviation of the string lengths
     pub std_dev_length: usize,
+    /// Number of data samples to generate
     pub num_samples: usize,
 }
 
 /// Generates a dataset matching the specified criteria.
-///
-/// - `seed`: Seed for the random number generator to ensure consistent data.
-/// - `partial_match_percentage`: Percentage of data that should match partially.
-/// - `match_percentage`: Percentage of data that should match.
-/// - `median_length`: Median length of the strings.
-/// - `std_dev_length`: Standard deviation of the string lengths.
-/// - `num_samples`: Number of data samples to generate.
-///
-/// Returns a vector of generated strings.
-///
 /// NOTE: The length of the generated strings may not match the median if the needle
 /// is close to or longer than the median length.
 pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Vec<String> {

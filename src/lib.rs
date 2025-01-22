@@ -4,26 +4,19 @@ extern crate memchr;
 
 mod bucket;
 pub mod r#const;
+mod match_;
 mod prefilter;
 mod reference;
 pub mod score_matrix;
 pub mod simd;
+
+pub use crate::match_::Match;
 
 use crate::score_matrix::*;
 use bucket::{Bucket, FixedWidthBucket};
 use prefilter::{prefilter_ascii, prefilter_ascii_with_typo};
 use r#const::SIMD_WIDTH;
 use std::cmp::Reverse;
-
-#[derive(Debug, Clone, Default)]
-pub struct Match {
-    /** Index of the match in the original list of haystacks */
-    pub index_in_haystack: usize,
-    /** Index of the match in the returned list of matches */
-    pub index: usize,
-    pub score: u16,
-    pub indices: Option<Vec<usize>>,
-}
 
 /// Computes the Smith-Waterman score with affine gaps for the list of given targets.
 ///
@@ -87,11 +80,19 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             225..=256 => 14,
             257..=384 => 15,
             385..=512 => 16,
-            // TODO: should just return score = 0 or fallback to prefilter
+            // TODO: should return score = 0 or fallback to prefilter
             _ => continue,
         };
 
-        if opts.prefilter && !prefilter(&needle_lower, haystack) {
+        // Perform a fast path with memchr if there are no typos or 1 typo
+        // This makes the algorithm 6x faster in the case of no matches
+        // in the haystack
+        let prefilter = match opts.max_typos {
+            Some(0) => prefilter(&needle_lower, haystack),
+            Some(1) => prefilter_with_typo(&needle_lower, haystack),
+            _ => true,
+        };
+        if !prefilter {
             continue;
         }
 
@@ -117,7 +118,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
     }
 
     // If either of these ran, the `index` property will be out of date
-    if opts.min_score > 0 || opts.prefilter {
+    if opts.min_score > 0 || opts.max_typos.map(|x| x < 2).unwrap_or(false) {
         matches = matches
             .into_iter()
             .enumerate()
@@ -171,28 +172,34 @@ fn prefilter(needle: &str, haystack: &str) -> bool {
     }
     prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
 }
+fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
+    if needle.len() > haystack.len() + 1 {
+        return false;
+    }
+    prefilter_ascii_with_typo(needle.as_bytes(), haystack.as_bytes()).is_some()
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Options {
     /// Populate score matrix and perform traceback to get the indices of the matching characters
     pub indices: bool,
-    /// Uses fzf's prefilter algorithm to remove any haystacks that do not include all of the
-    /// characters in the needle. This may remove many haystacks that contain good matches
-    pub prefilter: bool,
+    /// Minimum score to of an item to return a result. Generally, needle.len() * 6 will
+    pub min_score: u16,
+    /// The maximum number of characters missing from the needle, before an item in the
+    /// haystack is filtered out
+    pub max_typos: Option<usize>,
     /// Sort the results while maintaining the original order of the haystacks
     pub stable_sort: bool,
     /// Sort the results without maintaining the original order of the haystacks (much faster on
     /// long lists)
     pub unstable_sort: bool,
-    /// Minimum score to return a result
-    pub min_score: u16,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Options {
             indices: false,
-            prefilter: false,
+            max_typos: None,
             stable_sort: true,
             unstable_sort: false,
             min_score: 0,
