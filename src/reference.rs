@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::r#const::*;
 
 pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16) {
