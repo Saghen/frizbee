@@ -30,11 +30,13 @@ num_samples: 1000
 
 // Gets the scores for all of the items without any filtering
 frizbee                 time:   [55.135 µs 55.233 µs 55.358 µs]
-// Performs a fast prefilter since no typos are allowed. Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`.
+// Performs a fast prefilter since no typos are allowed
+// Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`
 frizbee_0_typos         time:   [21.178 µs 21.290 µs 21.464 µs]
-// Performs a prefilter since 1 typo is allowed, set via `max_typos: Some(1)`.
+// Performs a prefilter since 1 typo is allowed, set via `max_typos: Some(1)`
 frizbee_1_typos         time:   [39.701 µs 39.796 µs 39.912 µs]
-// Performs no prefiltering, and calculates the number of typos from the smith waterman score matrix
+// Performs no prefiltering, and calculates the number of typos
+// from the smith waterman score matrix
 frizbee_2_typos         time:   [61.491 µs 61.657 µs 61.851 µs]
 
 nucleo                  time:   [38.105 µs 38.338 µs 38.657 µs]
