@@ -35,8 +35,9 @@ frizbee                 time:   [55.135 µs 55.233 µs 55.358 µs]
 frizbee_0_typos         time:   [19.435 µs 19.465 µs 19.517 µs]
 // Performs a prefilter since 1 typo is allowed, set via `max_typos: Some(1)`
 frizbee_1_typos         time:   [36.252 µs 36.364 µs 36.498 µs]
-// Performs no prefiltering, and calculates the number of typos
-// from the smith waterman score matrix
+// Performs no prefiltering, since it's too expensive with 2 typos.
+// Instead, it calculates the number of typos from the smith waterman
+// score matrix, and filters the results
 frizbee_2_typos         time:   [61.491 µs 61.657 µs 61.851 µs]
 
 nucleo                  time:   [38.105 µs 38.338 µs 38.657 µs]
