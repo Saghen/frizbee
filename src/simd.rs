@@ -122,7 +122,7 @@ simd_num_impl!(u16, 1, 2, 4, 8, 16, 32);
 pub fn smith_waterman<N, const W: usize, const L: usize>(
     needle: &str,
     haystacks: &[&str; L],
-) -> ([u16; L], [u16; L])
+) -> ([u16; L], Vec<[Simd<N, L>; W]>)
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
@@ -248,11 +248,11 @@ where
         }
     }
 
-    (max_scores_vec, typos_from_score_matrix(score_matrix))
+    (max_scores_vec, score_matrix)
 }
 
 pub fn typos_from_score_matrix<N, const W: usize, const L: usize>(
-    score_matrix: Vec<[Simd<N, L>; W]>,
+    score_matrix: &[[Simd<N, L>; W]],
 ) -> [u16; L]
 where
     N: SimdNum<L>,
@@ -334,7 +334,7 @@ mod tests {
     }
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<u8, 4, 1>(needle, &[haystack; 1]).1[0]
+        typos_from_score_matrix(&smith_waterman::<u8, 4, 1>(needle, &[haystack; 1]).1)[0]
     }
 
     #[test]

@@ -59,6 +59,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             );
         })
     });
+    c.bench_function("frizbee_2_typos", |b| {
+        b.iter(|| {
+            match_list(
+                black_box(needle),
+                black_box(&haystack_ref),
+                Options {
+                    max_typos: Some(2),
+                    ..Default::default()
+                },
+            );
+        })
+    });
     c.bench_function("nucleo", |b| {
         let mut matcher = Matcher::new(Config::DEFAULT);
         let atom = Atom::new(

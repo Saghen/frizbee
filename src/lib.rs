@@ -28,7 +28,6 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             .enumerate()
             .map(|(i, _)| Match {
                 index_in_haystack: i,
-                index: i,
                 score: 0,
                 indices: None,
             })
@@ -36,7 +35,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
     }
 
     let needle_lower = needle.to_ascii_lowercase();
-    let mut matches = vec![None; haystacks.len()];
+    let mut matches = Vec::with_capacity(haystacks.len());
 
     let mut buckets: [Box<dyn Bucket>; 17] = [
         Box::new(FixedWidthBucket::<u8, 4, 16>::new()),
@@ -57,6 +56,13 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         Box::new(FixedWidthBucket::<u16, 384, 8>::new()),
         Box::new(FixedWidthBucket::<u16, 512, 8>::new()),
     ];
+
+    // Since we do prefitlering for max_typos <= 1, we can skip applying max typos on the buckets
+    let bucket_max_typos = match opts.max_typos {
+        Some(0..=1) => None,
+        None => None,
+        Some(max_typos) => Some(max_typos),
+    };
 
     for (i, haystack) in haystacks.iter().enumerate() {
         // Pick the bucket to insert into based on the length of the haystack
@@ -98,35 +104,13 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         bucket.add_haystack(haystack, i);
 
         if bucket.is_full() {
-            bucket.process(&mut matches, needle, opts.indices);
+            bucket.process(&mut matches, needle, opts.min_score, bucket_max_typos);
         }
     }
 
     // Iterate over the bucket with remaining elements
     for bucket in buckets.iter_mut() {
-        bucket.process(&mut matches, needle, opts.indices);
-    }
-
-    // Vec<Option<Match>> -> Vec<Match>
-    let mut matches = matches.into_iter().flatten().collect::<Vec<_>>();
-
-    // Min score
-    if opts.min_score > 0 {
-        matches.retain(|mtch| mtch.score >= opts.min_score);
-    }
-
-    // If either of these ran, the `index` property will be out of date
-    if opts.min_score > 0 || opts.max_typos.map(|x| x < 2).unwrap_or(false) {
-        matches = matches
-            .into_iter()
-            .enumerate()
-            .map(|(i, mtch)| Match {
-                index_in_haystack: mtch.index_in_haystack,
-                index: i,
-                score: mtch.score,
-                indices: mtch.indices,
-            })
-            .collect();
+        bucket.process(&mut matches, needle, opts.min_score, bucket_max_typos);
     }
 
     // Sorting
@@ -181,11 +165,12 @@ fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
 pub struct Options {
     /// Populate score matrix and perform traceback to get the indices of the matching characters
     pub indices: bool,
-    /// Minimum score to of an item to return a result. Generally, needle.len() * 6 will
+    /// Minimum score of an item to return a result. Generally, needle.len() * 6 will  be a good
+    /// default
     pub min_score: u16,
     /// The maximum number of characters missing from the needle, before an item in the
     /// haystack is filtered out
-    pub max_typos: Option<usize>,
+    pub max_typos: Option<u16>,
     /// Sort the results while maintaining the original order of the haystacks
     pub stable_sort: bool,
     /// Sort the results without maintaining the original order of the haystacks (much faster on

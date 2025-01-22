@@ -1,12 +1,18 @@
 use std::marker::PhantomData;
 
-use crate::simd::{smith_waterman, SimdNum};
+use crate::simd::{smith_waterman, typos_from_score_matrix, SimdNum};
 use crate::Match;
 
 pub(crate) trait Bucket<'a> {
     fn add_haystack(&mut self, haystack: &'a str, idx: usize);
     fn is_full(&self) -> bool;
-    fn process(&mut self, matches: &mut [Option<Match>], needle: &str, _with_indices: bool);
+    fn process(
+        &mut self,
+        matches: &mut Vec<Match>,
+        needle: &str,
+        min_score: u16,
+        max_typos: Option<u16>,
+    );
     fn reset(&mut self);
 }
 
@@ -58,20 +64,38 @@ where
         self.length == L
     }
 
-    fn process(&mut self, matches: &mut [Option<Match>], needle: &str, _with_indices: bool) {
+    fn process(
+        &mut self,
+        matches: &mut Vec<Match>,
+        needle: &str,
+        min_score: u16,
+        max_typos: Option<u16>,
+    ) {
         if self.length == 0 {
             return;
         }
 
-        let scores: &[u16] = &smith_waterman::<N, W, L>(needle, &self.haystacks).0;
+        let (scores, score_matrix) = smith_waterman::<N, W, L>(needle, &self.haystacks);
+
+        let typos = max_typos.map(|_| typos_from_score_matrix::<N, W, L>(&score_matrix));
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
+            let score = scores[idx];
+            if score < min_score {
+                continue;
+            }
+
+            if let Some(max_typos) = max_typos {
+                if typos.is_some_and(|typos| typos[idx] > max_typos) {
+                    continue;
+                }
+            }
+
             let score_idx = self.idxs[idx];
-            matches[score_idx] = Some(Match {
+            matches.push(Match {
                 index_in_haystack: score_idx,
-                index: score_idx,
                 score: scores[idx],
-                indices: None, //indices: bucket_indices.get(idx).cloned(),
+                indices: None,
             });
         }
 
