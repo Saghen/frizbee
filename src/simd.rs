@@ -13,6 +13,9 @@ pub trait SimdNum<const L: usize>:
     + std::ops::AddAssign
     + std::convert::From<u8>
     + std::convert::Into<u16>
+    + std::convert::Into<usize>
+    + std::cmp::PartialEq
+    + std::cmp::PartialOrd
 where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
@@ -43,6 +46,8 @@ where
     const MATCH_SCORE: Simd<Self, L>;
     const MISMATCH_PENALTY: Simd<Self, L>;
     const PREFIX_MATCH_SCORE: Simd<Self, L>;
+
+    fn from_usize(n: usize) -> Self;
 }
 
 pub trait SimdVec<N: SimdNum<L>, const L: usize>:
@@ -100,6 +105,11 @@ macro_rules! simd_num_impl {
                 const MATCH_SCORE: Simd<Self, $lanes> = Simd::from_array([MATCH_SCORE as $type; $lanes]);
                 const MISMATCH_PENALTY: Simd<Self, $lanes> = Simd::from_array([MISMATCH_PENALTY as $type; $lanes]);
                 const PREFIX_MATCH_SCORE: Simd<Self, $lanes> = Simd::from_array([(MATCH_SCORE + PREFIX_BONUS) as $type; $lanes]);
+
+                #[inline(always)]
+                fn from_usize(n: usize) -> Self {
+                    n as $type
+                }
             }
             impl SimdVec<$type, $lanes> for Simd<$type, $lanes> {}
             impl SimdMask<$type, $lanes> for Mask<<$type as SimdElement>::Mask, $lanes> {}
@@ -253,26 +263,23 @@ where
     Mask<N::Mask, L>: SimdMask<N, L>,
 {
     let mut typo_count = [0u16; L];
-    let mut scores = [0u16; L];
-    let mut positions = [(0, score_matrix.len() - 1); L];
+    let mut scores = N::ZERO_VEC;
+    let mut positions = N::ZERO_VEC;
 
     // Get the starting position by looking at the last column
     // (last character of the needle)
     let last_column = score_matrix.last().unwrap();
     for idx in 0..W {
         let row_scores = last_column[idx];
-        for (i, row_score) in row_scores.to_array().iter().enumerate() {
-            let score: u16 = (*row_score).into();
-            if score > scores[i] {
-                scores[i] = score;
-                positions[i] = (idx, score_matrix.len() - 1);
-            }
-        }
+        let row_max_mask: Mask<N::Mask, L> = row_scores.simd_gt(scores);
+        scores = row_max_mask.select(row_scores, scores);
+        positions = row_max_mask.select(Simd::splat(N::from_usize(idx)), positions);
     }
 
     // Traceback and store the matched indices
-    for (idx, initial_position) in positions.into_iter().enumerate() {
-        let (mut row_idx, mut col_idx) = initial_position;
+    for (idx, &row_idx) in positions.to_array().iter().enumerate() {
+        let mut col_idx = score_matrix.len() - 1;
+        let mut row_idx: usize = row_idx.into();
         let mut score = scores[idx];
 
         // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
@@ -285,9 +292,9 @@ where
             }
 
             // Gather up the scores for all possible paths
-            let diag = score_matrix[col_idx - 1][row_idx - 1][idx].into();
-            let left = score_matrix[col_idx - 1][row_idx][idx].into();
-            let up = score_matrix[col_idx][row_idx - 1][idx].into();
+            let diag = score_matrix[col_idx - 1][row_idx - 1][idx];
+            let left = score_matrix[col_idx - 1][row_idx][idx];
+            let up = score_matrix[col_idx][row_idx - 1][idx];
 
             // Match or mismatch
             if diag >= left && diag >= up {
@@ -311,7 +318,7 @@ where
         }
 
         // HACK: Compensate for the last column being a typo
-        if col_idx == 0 && score == 0 {
+        if col_idx == 0 && score == N::ZERO {
             typo_count[idx] += 1;
         }
     }
