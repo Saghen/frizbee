@@ -246,7 +246,7 @@ where
     for i in 0..L {
         max_scores_vec[i] = all_time_max_score[i].into();
         if haystacks[i] == needle_str {
-            max_scores_vec[i] += EXACT_MATCH_BONUS as u16;
+            max_scores_vec[i] += EXACT_MATCH_BONUS;
         }
     }
 
