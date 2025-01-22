@@ -64,12 +64,13 @@ where
         }
 
         let scores: &[u16] = &smith_waterman::<N, W, L>(needle, &self.haystacks).0;
+        #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
             let score_idx = self.idxs[idx];
             matches[score_idx] = Some(Match {
                 index_in_haystack: score_idx,
                 index: score_idx,
-                score: scores[idx] as u16,
+                score: scores[idx],
                 indices: None, //indices: bucket_indices.get(idx).cloned(),
             });
         }

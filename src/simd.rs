@@ -267,8 +267,7 @@ where
     // Get the starting position by looking at the last column
     // (last character of the needle)
     let last_column = score_matrix.last().unwrap();
-    for idx in 0..W {
-        let row_scores = last_column[idx];
+    for (idx, &row_scores) in last_column.iter().enumerate() {
         let row_max_mask: Mask<N::Mask, L> = row_scores.simd_gt(scores);
         scores = row_max_mask.select(row_scores, scores);
         positions = row_max_mask.select(Simd::splat(N::from_usize(idx)), positions);
