@@ -76,7 +76,9 @@ fn criterion_benchmark(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().warm_up_time(Duration::from_millis(100)).measurement_time(Duration::from_secs(1)).with_plots();
+    config = Criterion::default()
+        .warm_up_time(Duration::from_millis(100))
+        .measurement_time(Duration::from_secs(1));
     targets = criterion_benchmark
 }
 criterion_main!(benches);
