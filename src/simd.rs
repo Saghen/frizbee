@@ -198,7 +198,7 @@ where
                 diag + match_score
                     + (is_delimiter_mask & delimiter_bonus_enabled_mask).select(N::DELIMITER_BONUS, N::ZERO_VEC)
                     // ignore capitalization on the prefix
-                    + if is_prefix { capital_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC) } else { N::ZERO_VEC }
+                    + if !is_prefix { capital_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC) } else { N::ZERO_VEC }
                     + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC),
                 diag.saturating_sub(N::MISMATCH_PENALTY),
             );
