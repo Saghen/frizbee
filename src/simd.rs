@@ -131,8 +131,6 @@ where
 {
     let needle_str = needle;
     let needle = needle.as_bytes();
-    let needle_len = needle.len();
-    assert!(needle_len > 0);
     let haystack_len = haystacks.iter().map(|&x| x.len()).max().unwrap();
     assert!(haystack_len <= W);
 
@@ -148,7 +146,7 @@ where
     let mut score_matrix = vec![[N::ZERO_VEC; W]; needle.len()];
     let mut all_time_max_score = N::ZERO_VEC;
 
-    for i in 0..needle_len {
+    for i in 0..needle.len() {
         let prev_col_scores = if i > 0 {
             score_matrix[i - 1]
         } else {
