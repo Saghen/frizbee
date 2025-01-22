@@ -18,7 +18,7 @@ name = "lib"
 harness = false
 
 [[bench]]
-name = "smith_waterman"
+name = "smith_waterman_iai"
 harness = false
 
 [dependencies]
