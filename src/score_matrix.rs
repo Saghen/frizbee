@@ -52,22 +52,22 @@ pub fn smith_waterman_with_scoring_matrix(
     let comma_delimiter = Simd::splat(",".bytes().next().unwrap() as u16);
     let underscore_delimiter = Simd::splat("_".bytes().next().unwrap() as u16);
     let dash_delimiter = Simd::splat("-".bytes().next().unwrap() as u16);
-    let delimiter_bonus = Simd::splat(DELIMITER_BONUS as u16);
+    let delimiter_bonus = Simd::splat(DELIMITER_BONUS);
 
     // Capitalization
     let capital_start = Simd::splat("A".bytes().next().unwrap() as u16);
     let capital_end = Simd::splat("Z".bytes().next().unwrap() as u16);
-    let capitalization_bonus = Simd::splat(CAPITALIZATION_BONUS as u16);
-    let matching_casing_bonus = Simd::splat(MATCHING_CASE_BONUS as u16);
+    let capitalization_bonus = Simd::splat(CAPITALIZATION_BONUS);
+    let matching_casing_bonus = Simd::splat(MATCHING_CASE_BONUS);
     let to_lowercase_mask = Simd::splat(0x20);
 
     // Scoring params
-    let gap_open_penalty = Simd::splat(GAP_OPEN_PENALTY as u16);
-    let gap_extend_penalty = Simd::splat(GAP_EXTEND_PENALTY as u16);
+    let gap_open_penalty = Simd::splat(GAP_OPEN_PENALTY);
+    let gap_extend_penalty = Simd::splat(GAP_EXTEND_PENALTY);
 
-    let match_score = Simd::splat(MATCH_SCORE as u16);
-    let mismatch_score = Simd::splat(MISMATCH_PENALTY as u16);
-    let prefix_match_score = Simd::splat(MATCH_SCORE as u16 + PREFIX_BONUS as u16);
+    let match_score = Simd::splat(MATCH_SCORE);
+    let mismatch_score = Simd::splat(MISMATCH_PENALTY);
+    let prefix_match_score = Simd::splat(MATCH_SCORE + PREFIX_BONUS);
 
     let zero: SimdVec = Simd::splat(0);
 
