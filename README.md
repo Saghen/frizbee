@@ -1,6 +1,6 @@
 # Frizbee
 
-Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by 1.65x (23.2us vs 38.3us). It supports matching against ASCII only, with plans to support Unicode.
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2x (19.5us vs 38.3us). It supports matching against ASCII only, with plans to support Unicode.
 
 ## Usage
 
@@ -32,9 +32,9 @@ num_samples: 1000
 frizbee                 time:   [55.135 µs 55.233 µs 55.358 µs]
 // Performs a fast prefilter since no typos are allowed
 // Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`
-frizbee_0_typos         time:   [21.178 µs 21.290 µs 21.464 µs]
+frizbee_0_typos         time:   [19.435 µs 19.465 µs 19.517 µs]
 // Performs a prefilter since 1 typo is allowed, set via `max_typos: Some(1)`
-frizbee_1_typos         time:   [39.701 µs 39.796 µs 39.912 µs]
+frizbee_1_typos         time:   [36.252 µs 36.364 µs 36.498 µs]
 // Performs no prefiltering, and calculates the number of typos
 // from the smith waterman score matrix
 frizbee_2_typos         time:   [61.491 µs 61.657 µs 61.851 µs]
