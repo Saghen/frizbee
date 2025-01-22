@@ -38,7 +38,7 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
         let prev_col_scores = if i == 0 { [0; W] } else { score_matrix[i - 1] };
         let curr_col_scores = &mut score_matrix[i];
 
-        let mut up_score_simd: u8 = 0;
+        let mut up_score_simd: u16 = 0;
         let mut up_gap_penalty_mask = true;
 
         let needle_char = needle[i];
@@ -121,8 +121,8 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
             // since we want to match the entire needle to see how many typos there are
             (all_time_max_score_col, all_time_max_score_row) = if all_time_max_score_col < max_score
             {
-                // TODO: must guarantee that needle.len() < 2 ** 8
-                ((i + 1) as u8, (j + 1) as u8)
+                // TODO: must guarantee that needle.len() < 2 ** 16
+                ((i + 1) as u16, (j + 1) as u16)
             } else {
                 (all_time_max_score_col, all_time_max_score_row)
             };
@@ -132,9 +132,9 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
     }
 
     if haystack == needle {
-        all_time_max_score as u16 + EXACT_MATCH_BONUS
+        all_time_max_score + EXACT_MATCH_BONUS
     } else {
-        all_time_max_score as u16
+        all_time_max_score
     }
 }
 
@@ -142,10 +142,10 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
 mod tests {
     use super::*;
 
-    const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
+    const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
-    fn run_single(needle: &str, haystack: &str) -> u8 {
-        smith_waterman::<16>(needle, haystack) as u8
+    fn run_single(needle: &str, haystack: &str) -> u16 {
+        smith_waterman::<16>(needle, haystack)
     }
 
     #[test]
@@ -165,11 +165,11 @@ mod tests {
     fn test_exact_match() {
         assert_eq!(
             run_single("a", "a"),
-            CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
+            CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(
             run_single("abc", "abc"),
-            3 * CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
+            3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
         // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
