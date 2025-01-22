@@ -57,7 +57,7 @@ fn find_two_ascii_ignore_case(c1: u8, c2: u8, haystack: &[u8]) -> Option<(usize,
 
 #[inline(always)]
 fn find_ascii_ignore_case(c: u8, haystack: &[u8]) -> Option<usize> {
-    if c >= b'a' && c <= b'z' {
+    if c.is_ascii_lowercase() {
         memchr2(c, c - 32, haystack)
     } else {
         memchr(c, haystack)

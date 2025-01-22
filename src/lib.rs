@@ -1,7 +1,5 @@
 #![feature(portable_simd)]
 
-extern crate memchr;
-
 mod bucket;
 pub mod r#const;
 mod match_;
