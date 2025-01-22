@@ -323,10 +323,10 @@ where
 mod tests {
     use super::*;
 
-    const CHAR_SCORE: u8 = MATCH_SCORE + MATCHING_CASE_BONUS;
+    const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
-    fn get_score(needle: &str, haystack: &str) -> u8 {
-        smith_waterman::<u8, 16, 1>(needle, &[haystack; 1]).0[0] as u8
+    fn get_score(needle: &str, haystack: &str) -> u16 {
+        smith_waterman::<u8, 16, 1>(needle, &[haystack; 1]).0[0]
     }
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
@@ -368,11 +368,11 @@ mod tests {
     fn test_score_exact_match() {
         assert_eq!(
             get_score("a", "a"),
-            CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
+            CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(
             get_score("abc", "abc"),
-            3 * CHAR_SCORE + EXACT_MATCH_BONUS as u8 + PREFIX_BONUS
+            3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
         // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
