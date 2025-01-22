@@ -1,6 +1,6 @@
 use crate::r#const::*;
 
-pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
+pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16) {
     assert!(haystack.len() <= W);
 
     let needle = needle.as_bytes();
@@ -9,33 +9,9 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
     // State
     let mut score_matrix = vec![[0; W]; needle.len()];
     let mut all_time_max_score = 0;
-    let mut all_time_max_score_row = 0;
-    let mut all_time_max_score_col = 0;
-
-    // Delimiters
-    let space_delimiter = b' ';
-    let slash_delimiter = b'/';
-    let dot_delimiter = b'.';
-    let comma_delimiter = b',';
-    let underscore_delimiter = b'_';
-    let dash_delimiter = b'-';
-    let colon_delimiter = b':';
-    let delimiter_bonus = DELIMITER_BONUS;
-
-    // Capitalization
-    let capitalization_bonus = CAPITALIZATION_BONUS;
-    let matching_casing_bonus = MATCHING_CASE_BONUS;
-
-    // Scoring params
-    let gap_open_penalty = GAP_OPEN_PENALTY;
-    let gap_extend_penalty = GAP_EXTEND_PENALTY;
-
-    let match_score = MATCH_SCORE;
-    let mismatch_score = MISMATCH_PENALTY;
-    let prefix_match_score = MATCH_SCORE + PREFIX_BONUS;
 
     for i in 0..needle.len() {
-        let prev_col_scores = if i == 0 { [0; W] } else { score_matrix[i - 1] };
+        let prev_col_scores = if i > 0 { score_matrix[i - 1] } else { [0; W] };
         let curr_col_scores = &mut score_matrix[i];
 
         let mut up_score_simd: u16 = 0;
@@ -50,46 +26,49 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
         let mut is_delimiter_mask = false;
 
         for j in 0..haystack.len() {
-            let prefix_mask = j == 0;
+            let is_prefix = j == 0;
 
             // Load chunk and remove casing
             let cased_haystack_simd = haystack[j];
             let capital_mask = cased_haystack_simd.is_ascii_uppercase();
             let haystack_simd = cased_haystack_simd.to_ascii_lowercase();
 
+            let matched_casing_mask = needle_cased_mask == capital_mask;
+
             // Give a bonus for prefix matches
-            let match_score = if prefix_mask {
-                prefix_match_score
+            let match_score = if is_prefix {
+                MATCH_SCORE + PREFIX_BONUS
             } else {
-                match_score
+                MATCH_SCORE
             };
 
             // Calculate diagonal (match/mismatch) scores
-            let diag = if j > 0 { prev_col_scores[j - 1] } else { 0 };
-            let diag_score = if needle_char == haystack_simd {
+            let diag = if is_prefix { 0 } else { prev_col_scores[j - 1] };
+            let match_mask = needle_char == haystack_simd;
+            let diag_score = if match_mask {
                 diag + match_score
-                    + if is_delimiter_mask && delimiter_bonus_enabled_mask { delimiter_bonus } else { 0 }
-                    // XOR with prefix mask to ignore capitalization on the prefix
-                    + if capital_mask && !prefix_mask { capitalization_bonus } else { 0 }
-                    + if needle_cased_mask == capital_mask { matching_casing_bonus } else { 0 }
+                    + if is_delimiter_mask && delimiter_bonus_enabled_mask { DELIMITER_BONUS } else { 0 }
+                    // ignore capitalization on the prefix
+                    + if !is_prefix && capital_mask { CAPITALIZATION_BONUS } else { 0 }
+                    + if matched_casing_mask { MATCHING_CASE_BONUS } else { 0 }
             } else {
-                diag.saturating_sub(mismatch_score)
+                diag.saturating_sub(MISMATCH_PENALTY)
             };
 
             // Load and calculate up scores (skipping char in haystack)
             let up_gap_penalty = if up_gap_penalty_mask {
-                gap_open_penalty
+                GAP_OPEN_PENALTY
             } else {
-                gap_extend_penalty
+                GAP_EXTEND_PENALTY
             };
             let up_score = up_score_simd.saturating_sub(up_gap_penalty);
 
             // Load and calculate left scores (skipping char in needle)
             let left = prev_col_scores[j];
             let left_gap_penalty = if left_gap_penalty_mask {
-                gap_open_penalty
+                GAP_OPEN_PENALTY
             } else {
-                gap_extend_penalty
+                GAP_EXTEND_PENALTY
             };
             let left_score = left.saturating_sub(left_gap_penalty);
 
@@ -102,13 +81,7 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
             left_gap_penalty_mask = max_score != left_score || diag_mask;
 
             // Update delimiter mask
-            is_delimiter_mask = space_delimiter == haystack_simd
-                || slash_delimiter == haystack_simd
-                || dot_delimiter == haystack_simd
-                || comma_delimiter == haystack_simd
-                || underscore_delimiter == haystack_simd
-                || dash_delimiter == haystack_simd
-                || colon_delimiter == haystack_simd;
+            is_delimiter_mask = [b' ', b'/', b',', b'_', b'-', b':'].contains(&haystack_simd);
             // Only enable delimiter bonus if we've seen a non-delimiter char
             delimiter_bonus_enabled_mask |= !is_delimiter_mask;
 
@@ -117,25 +90,82 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> u16 {
             curr_col_scores[j] = max_score;
 
             // Store the maximum score across all runs
-            // TODO: shouldn't we only care about the max score of the final column?
-            // since we want to match the entire needle to see how many typos there are
-            (all_time_max_score_col, all_time_max_score_row) = if all_time_max_score_col < max_score
-            {
-                // TODO: must guarantee that needle.len() < 2 ** 16
-                ((i + 1) as u16, (j + 1) as u16)
-            } else {
-                (all_time_max_score_col, all_time_max_score_row)
-            };
-
             all_time_max_score = all_time_max_score.max(max_score);
         }
     }
 
-    if haystack == needle {
+    let max_score = if haystack == needle {
         all_time_max_score + EXACT_MATCH_BONUS
     } else {
         all_time_max_score
+    };
+
+    (max_score, typos_from_score_matrix(score_matrix))
+}
+
+pub fn typos_from_score_matrix<const W: usize>(score_matrix: Vec<[u16; W]>) -> u16 {
+    let mut typo_count = 0;
+    let mut score = 0;
+    let mut positions = 0;
+
+    // Get the starting position by looking at the last column
+    // (last character of the needle)
+    let last_column = score_matrix.last().unwrap();
+    for idx in 0..W {
+        let row_score = last_column[idx];
+        if row_score > score {
+            score = row_score;
+            positions = idx;
+        }
     }
+
+    // Traceback and store the matched indices
+    // for (idx, &row_idx) in positions.to_array().iter().enumerate() {
+    let mut col_idx = score_matrix.len() - 1;
+    let mut row_idx: usize = positions;
+
+    // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
+    while col_idx > 0 {
+        // Must be moving left
+        if row_idx == 0 {
+            typo_count += 1;
+            col_idx -= 1;
+            continue;
+        }
+
+        // Gather up the scores for all possible paths
+        let diag = score_matrix[col_idx - 1][row_idx - 1];
+        let left = score_matrix[col_idx - 1][row_idx];
+        let up = score_matrix[col_idx][row_idx - 1];
+
+        // Match or mismatch
+        if diag >= left && diag >= up {
+            // Must be a mismatch
+            if diag >= score {
+                typo_count += 1;
+            }
+            row_idx -= 1;
+            col_idx -= 1;
+            score = diag;
+        // Skipped character in needle
+        } else if left >= up {
+            typo_count += 1;
+            col_idx -= 1;
+            score = left;
+        // Skipped character in haystack
+        } else {
+            row_idx -= 1;
+            score = up;
+        }
+    }
+
+    // HACK: Compensate for the last column being a typo
+    if col_idx == 0 && score == 0 {
+        typo_count += 1;
+    }
+    // }
+
+    typo_count
 }
 
 #[cfg(test)]
@@ -144,69 +174,91 @@ mod tests {
 
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
-    fn run_single(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<16>(needle, haystack)
+    fn get_score(needle: &str, haystack: &str) -> u16 {
+        smith_waterman::<16>(needle, haystack).0
+    }
+
+    fn get_typos(needle: &str, haystack: &str) -> u16 {
+        smith_waterman::<4>(needle, haystack).1
     }
 
     #[test]
-    fn test_basic() {
-        assert_eq!(run_single("b", "abc"), CHAR_SCORE);
-        assert_eq!(run_single("c", "abc"), CHAR_SCORE);
+    fn test_score_basic() {
+        assert_eq!(get_score("b", "abc"), CHAR_SCORE);
+        assert_eq!(get_score("c", "abc"), CHAR_SCORE);
     }
 
     #[test]
-    fn test_prefix() {
-        assert_eq!(run_single("a", "abc"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("a", "aabc"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("a", "babc"), CHAR_SCORE);
+    fn test_typos_basic() {
+        assert_eq!(get_typos("a", "abc"), 0);
+        assert_eq!(get_typos("b", "abc"), 0);
+        assert_eq!(get_typos("c", "abc"), 0);
+        assert_eq!(get_typos("ac", "abc"), 0);
+
+        assert_eq!(get_typos("d", "abc"), 1);
+        assert_eq!(get_typos("da", "abc"), 1);
+        assert_eq!(get_typos("dc", "abc"), 1);
+        assert_eq!(get_typos("ad", "abc"), 1);
+        assert_eq!(get_typos("adc", "abc"), 1);
+        assert_eq!(get_typos("add", "abc"), 2);
+        assert_eq!(get_typos("ddd", "abc"), 3);
+        assert_eq!(get_typos("ddd", ""), 3);
+        assert_eq!(get_typos("d", ""), 1);
     }
 
     #[test]
-    fn test_exact_match() {
+    fn test_score_prefix() {
+        assert_eq!(get_score("a", "abc"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "aabc"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "babc"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_score_exact_match() {
         assert_eq!(
-            run_single("a", "a"),
+            get_score("a", "a"),
             CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(
-            run_single("abc", "abc"),
+            get_score("abc", "abc"),
             3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
-        assert_eq!(run_single("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
         // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]
-    fn test_delimiter() {
-        assert_eq!(run_single("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
-        assert_eq!(run_single("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
-        assert_eq!(run_single("c", "a--bc"), CHAR_SCORE);
-        assert_eq!(run_single("a", "-a--bc"), CHAR_SCORE);
-        assert_eq!(run_single("-", "a-bc"), CHAR_SCORE);
-        assert_eq!(run_single("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
+    fn test_score_delimiter() {
+        assert_eq!(get_score("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("-", "a-bc"), CHAR_SCORE);
+        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
     }
 
     #[test]
-    fn test_affine_gap() {
+    fn test_score_affine_gap() {
         assert_eq!(
-            run_single("test", "Uterst"),
+            get_score("test", "Uterst"),
             CHAR_SCORE * 4 - GAP_OPEN_PENALTY
         );
         assert_eq!(
-            run_single("test", "Uterrst"),
+            get_score("test", "Uterrst"),
             CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
         );
     }
 
     #[test]
-    fn test_capital_bonus() {
-        assert_eq!(run_single("a", "A"), MATCH_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(run_single("D", "forDist"), CHAR_SCORE);
+    fn test_score_capital_bonus() {
+        assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("D", "forDist"), CHAR_SCORE);
     }
 
     #[test]
-    fn test_prefix_beats_delimiter() {
-        assert!(run_single("swap", "swap(test)") > run_single("swap", "iter_swap(test)"),);
+    fn test_score_prefix_beats_delimiter() {
+        assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"),);
     }
 }
