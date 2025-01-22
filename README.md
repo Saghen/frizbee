@@ -1,19 +1,42 @@
 # Frizbee
 
-Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by 2.9x (1.3ms vs 3.8ms). However, it supports matching against ASCII only, with plans to support Unicode.
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by 1.65x (23.2us vs 38.3us). It supports matching against ASCII only, with plans to support Unicode.
 
 ## Usage
 
 ```rust
 use frizbee::*;
 
-let needle = "banny";
+let needle = "pri";
 let haystacks = [
     "print", "println", "prelude", "println!", "prefetch", "prefix", "prefix!", "print!",
     "print", "println", "prelude", "println!", "prefetch", "prefix", "prefix!", "print!",
 ];
 
 let matches = match_list(needle, &haystacks, Options::default());
+```
+
+## Benchmarks
+
+Benchmarks were run on a Ryzen 7 3700X, with `-C target-cpu=native`. Results with different needle, partial match percentage, match percentage, median length, and number of samples are in the works. You may test these cases yourself via the included benchmarks.
+
+```rust
+needle: "deadbe"
+partial_match_percentage: 0.05
+match_percentage: 0.05
+median_length: 16
+std_dev_length: 4
+num_samples: 1000
+
+// Gets the scores for all of the items without any filtering
+frizbee                 time:   [60.861 µs 61.121 µs 61.416 µs]
+// Performs a fast prefilter since no typos are allowed. Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`.
+frizbee_0_typos         time:   [23.219 µs 23.289 µs 23.366 µs]
+// Performs a prefilter since 1 typo is allowed. Matches the behavior of fzf/nucleo, set via `max_typos: Some(1)`.
+// Prefiltering will not be performed above 1 typo, due to the performance cost
+frizbee_1_typos         time:   [42.447 µs 42.725 µs 43.019 µs]
+
+nucleo                  time:   [38.105 µs 38.338 µs 38.657 µs]
 ```
 
 ## Algorithm
