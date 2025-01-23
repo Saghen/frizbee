@@ -3,6 +3,7 @@
 mod bitmask;
 mod bucket;
 pub mod r#const;
+pub mod incremental;
 mod match_;
 mod prefilter;
 mod reference;

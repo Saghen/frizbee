@@ -217,12 +217,36 @@ where
 }
 
 #[inline(always)]
-pub(crate) fn smith_waterman_inner<N, const W: usize, const L: usize>(
+pub(crate) fn prepare_haystack_dynamic_width<N, const L: usize>(
+    width: usize,
+    haystacks: &[&str; L],
+) -> Box<[HaystackChar<N, L>]>
+where
+    N: SimdNum<L>,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+    Simd<N, L>: SimdVec<N, L>,
+    Mask<N::Mask, L>: SimdMask<N, L>,
+{
+    (0..width)
+        .into_iter()
+        .map(|i| {
+            // Convert haystacks to a static array of bytes chunked for SIMD
+            let chars = std::array::from_fn(|j| {
+                N::from(*haystacks[j].as_bytes().get(i).to_owned().unwrap_or(&0))
+            });
+            // pre-compute haystack case mask, delimiter mask, and lowercase
+            HaystackChar::new(Simd::from_array(chars))
+        })
+        .collect()
+}
+
+#[inline(always)]
+pub(crate) fn smith_waterman_inner<N, const L: usize>(
     width: usize,
     needle_char: NeedleChar<N, L>,
-    haystack: &[HaystackChar<N, L>; W],
-    prev_score_col: &[Simd<N, L>; W],
-    curr_score_col: &mut [Simd<N, L>; W],
+    haystack: &[HaystackChar<N, L>],
+    prev_score_col: Option<&[Simd<N, L>]>,
+    curr_score_col: &mut [Simd<N, L>],
     all_time_max_score: &mut Simd<N, L>,
 ) where
     N: SimdNum<L>,
@@ -241,10 +265,9 @@ pub(crate) fn smith_waterman_inner<N, const W: usize, const L: usize>(
         let (diag, left) = if haystack_idx == 0 {
             (N::ZERO_VEC, N::ZERO_VEC)
         } else {
-            (
-                prev_score_col[haystack_idx - 1],
-                prev_score_col[haystack_idx],
-            )
+            prev_score_col
+                .map(|c| (c[haystack_idx - 1], c[haystack_idx]))
+                .unwrap_or((N::ZERO_VEC, N::ZERO_VEC))
         };
 
         // Calculate diagonal (match/mismatch) scores
@@ -330,10 +353,10 @@ where
         let needle_char = NeedleChar::new(N::from(needle[needle_idx]));
 
         let (prev_score_col, curr_score_col) = if needle_idx == 0 {
-            (&[N::ZERO_VEC; W], &mut score_matrix[needle_idx])
+            (None, &mut score_matrix[needle_idx])
         } else {
             let (a, b) = score_matrix.split_at_mut(needle_idx);
-            (&a[needle_idx - 1], &mut b[0])
+            (Some(a[needle_idx - 1].as_slice()), &mut b[0])
         };
 
         smith_waterman_inner(
