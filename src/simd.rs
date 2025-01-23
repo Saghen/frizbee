@@ -216,6 +216,92 @@ where
     })
 }
 
+#[inline(always)]
+pub(crate) fn smith_waterman_inner<N, const W: usize, const L: usize>(
+    width: usize,
+    needle_char: NeedleChar<N, L>,
+    haystack: &[HaystackChar<N, L>; W],
+    prev_score_col: &[Simd<N, L>; W],
+    curr_score_col: &mut [Simd<N, L>; W],
+    all_time_max_score: &mut Simd<N, L>,
+) where
+    N: SimdNum<L>,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+    Simd<N, L>: SimdVec<N, L>,
+    Mask<N::Mask, L>: SimdMask<N, L>,
+{
+    let mut up_score_simd = N::ZERO_VEC;
+    let mut up_gap_penalty_mask = Mask::splat(true);
+    let mut left_gap_penalty_mask = Mask::splat(true);
+    let mut delimiter_bonus_enabled_mask = Mask::splat(false);
+
+    for haystack_idx in 0..width {
+        let haystack_char = haystack[haystack_idx];
+
+        let (diag, left) = if haystack_idx == 0 {
+            (N::ZERO_VEC, N::ZERO_VEC)
+        } else {
+            (
+                prev_score_col[haystack_idx - 1],
+                prev_score_col[haystack_idx],
+            )
+        };
+
+        // Calculate diagonal (match/mismatch) scores
+        let match_mask: Mask<N::Mask, L> = needle_char.lowercase.simd_eq(haystack_char.lowercase);
+        let matched_casing_mask: Mask<N::Mask, L> = needle_char
+            .is_capital_mask
+            .simd_eq(haystack_char.is_capital_mask);
+        let diag_score: Simd<N, L> = match_mask.select(
+            diag + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC)
+                + if haystack_idx > 0 {
+                    // ignore capitalization on the prefix
+                    let capitalization_bonus = haystack_char
+                        .is_capital_mask
+                        .select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
+
+                    let delimiter_bonus_mask: Mask<N::Mask, L> =
+                        haystack[haystack_idx - 1].is_delimiter_mask & delimiter_bonus_enabled_mask;
+                    let delimiter_bonus =
+                        delimiter_bonus_mask.select(N::DELIMITER_BONUS, N::ZERO_VEC);
+
+                    capitalization_bonus + delimiter_bonus + N::MATCH_SCORE
+                } else {
+                    // Give a bonus for prefix matches
+                    N::PREFIX_MATCH_SCORE
+                },
+            diag.saturating_sub(N::MISMATCH_PENALTY),
+        );
+
+        // Load and calculate up scores (skipping char in haystack)
+        let up_gap_penalty = up_gap_penalty_mask.select(N::GAP_OPEN_PENALTY, N::GAP_EXTEND_PENALTY);
+        let up_score = up_score_simd.saturating_sub(up_gap_penalty);
+
+        // Load and calculate left scores (skipping char in needle)
+        let left_gap_penalty =
+            left_gap_penalty_mask.select(N::GAP_OPEN_PENALTY, N::GAP_EXTEND_PENALTY);
+        let left_score = left.saturating_sub(left_gap_penalty);
+
+        // Calculate maximum scores
+        let max_score = diag_score.simd_max(up_score).simd_max(left_score);
+
+        // Update gap penalty mask
+        let diag_mask: Mask<N::Mask, L> = max_score.simd_eq(diag_score);
+        up_gap_penalty_mask = max_score.simd_ne(up_score) | diag_mask;
+        left_gap_penalty_mask = max_score.simd_ne(left_score) | diag_mask;
+
+        // Only enable delimiter bonus if we've seen a non-delimiter char
+        delimiter_bonus_enabled_mask |= haystack_char.is_delimiter_mask.not();
+
+        // Store the scores for the next iterations
+        up_score_simd = max_score;
+        curr_score_col[haystack_idx] = max_score;
+
+        // Store the maximum score across all runs
+        *all_time_max_score = all_time_max_score.simd_max(max_score);
+    }
+}
+
 #[inline]
 pub fn smith_waterman<N, const W: usize, const L: usize>(
     needle: &str,
@@ -247,79 +333,14 @@ where
             (&a[needle_idx - 1], &mut b[0])
         };
 
-        let mut up_score_simd = N::ZERO_VEC;
-        let mut up_gap_penalty_mask = Mask::splat(true);
-        let mut left_gap_penalty_mask = Mask::splat(true);
-        let mut delimiter_bonus_enabled_mask = Mask::splat(false);
-
-        for haystack_idx in 0..width {
-            let haystack_char = haystack[haystack_idx];
-
-            let (diag, left) = if haystack_idx == 0 {
-                (N::ZERO_VEC, N::ZERO_VEC)
-            } else {
-                (
-                    prev_score_col[haystack_idx - 1],
-                    prev_score_col[haystack_idx],
-                )
-            };
-
-            // Calculate diagonal (match/mismatch) scores
-            let match_mask: Mask<N::Mask, L> =
-                needle_char.lowercase.simd_eq(haystack_char.lowercase);
-            let matched_casing_mask: Mask<N::Mask, L> = needle_char
-                .is_capital_mask
-                .simd_eq(haystack_char.is_capital_mask);
-            let diag_score: Simd<N, L> = match_mask.select(
-                diag + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC)
-                    + if haystack_idx > 0 {
-                        // ignore capitalization on the prefix
-                        let capitalization_bonus = haystack_char
-                            .is_capital_mask
-                            .select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
-
-                        let delimiter_bonus_mask: Mask<N::Mask, L> = haystack[haystack_idx - 1]
-                            .is_delimiter_mask
-                            & delimiter_bonus_enabled_mask;
-                        let delimiter_bonus =
-                            delimiter_bonus_mask.select(N::DELIMITER_BONUS, N::ZERO_VEC);
-
-                        capitalization_bonus + delimiter_bonus + N::MATCH_SCORE
-                    } else {
-                        // Give a bonus for prefix matches
-                        N::PREFIX_MATCH_SCORE
-                    },
-                diag.saturating_sub(N::MISMATCH_PENALTY),
-            );
-
-            // Load and calculate up scores (skipping char in haystack)
-            let up_gap_penalty =
-                up_gap_penalty_mask.select(N::GAP_OPEN_PENALTY, N::GAP_EXTEND_PENALTY);
-            let up_score = up_score_simd.saturating_sub(up_gap_penalty);
-
-            // Load and calculate left scores (skipping char in needle)
-            let left_gap_penalty =
-                left_gap_penalty_mask.select(N::GAP_OPEN_PENALTY, N::GAP_EXTEND_PENALTY);
-            let left_score = left.saturating_sub(left_gap_penalty);
-
-            // Calculate maximum scores
-            let max_score = diag_score.simd_max(up_score).simd_max(left_score);
-
-            // Update gap penalty mask
-            let diag_mask: Mask<N::Mask, L> = max_score.simd_eq(diag_score);
-            up_gap_penalty_mask = max_score.simd_ne(up_score) | diag_mask;
-            left_gap_penalty_mask = max_score.simd_ne(left_score) | diag_mask;
-
-            // Only enable delimiter bonus if we've seen a non-delimiter char
-            delimiter_bonus_enabled_mask |= haystack_char.is_delimiter_mask.not();
-
-            // Store the scores for the next iterations
-            up_score_simd = max_score;
-            curr_score_col[haystack_idx] = max_score;
-
-            // Store the maximum score across all runs
-            all_time_max_score = all_time_max_score.simd_max(max_score);
-        }
+        smith_waterman_inner(
+            width,
+            needle_char,
+            &haystack,
+            prev_score_col,
+            curr_score_col,
+            &mut all_time_max_score,
+        );
     }
 
     let exact_matches = std::array::from_fn(|i| haystacks[i] == needle_str);
