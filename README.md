@@ -1,6 +1,6 @@
 # Frizbee
 
-Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2x (19.5us vs 38.3us). It supports matching against ASCII only, with plans to support Unicode.
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2x (18.4us vs 35.8us). It matches against characters directly, ignoring unicode.
 
 ## Usage
 
@@ -29,18 +29,16 @@ std_dev_length: 4
 num_samples: 1000
 
 // Gets the scores for all of the items without any filtering
-frizbee                 time:   [55.135 µs 55.233 µs 55.358 µs]
-// Performs a fast prefilter since no typos are allowed
+frizbee                 time:   [54.892 µs 55.033 µs 55.209 µs]
+// Performs the fastest prefilter since no typos are allowed
 // Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`
-frizbee_0_typos         time:   [19.435 µs 19.465 µs 19.517 µs]
-// Performs a prefilter since 1 typo is allowed, set via `max_typos: Some(1)`
-frizbee_1_typos         time:   [36.252 µs 36.364 µs 36.498 µs]
-// Performs no prefiltering, since it's too expensive with 2 typos.
-// Instead, it calculates the number of typos from the smith waterman
-// score matrix, and filters the results
-frizbee_2_typos         time:   [61.491 µs 61.657 µs 61.851 µs]
+frizbee_0_typos         time:   [18.283 µs 18.373 µs 18.482 µs]
+// Performs a prefilter since a set number of typos are allowed,
+// set via `max_typos: Some(1)`
+frizbee_1_typos         time:   [27.963 µs 28.049 µs 28.143 µs]
+frizbee_2_typos         time:   [49.100 µs 49.177 µs 49.271 µs]
 
-nucleo                  time:   [38.105 µs 38.338 µs 38.657 µs]
+nucleo                  time:   [35.686 µs 35.765 µs 35.848 µs]
 ```
 
 ## Algorithm

@@ -1,5 +1,6 @@
 #![feature(portable_simd)]
 
+mod bitmask;
 mod bucket;
 pub mod r#const;
 mod match_;
@@ -11,8 +12,8 @@ pub mod simd;
 pub use crate::match_::Match;
 
 use crate::score_matrix::*;
+use bitmask::{string_to_bitmask, string_to_bitmask_simd};
 use bucket::{Bucket, FixedWidthBucket};
-use prefilter::{prefilter_ascii, prefilter_ascii_with_typo};
 use r#const::SIMD_WIDTH;
 use std::cmp::Reverse;
 
@@ -34,7 +35,6 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             .collect();
     }
 
-    let needle_lower = needle.to_ascii_lowercase();
     let mut matches = Vec::with_capacity(haystacks.len());
 
     let mut buckets: [Box<dyn Bucket>; 17] = [
@@ -57,12 +57,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         Box::new(FixedWidthBucket::<u16, 512, 8>::new()),
     ];
 
-    // Since we do prefitlering for max_typos <= 1, we can skip applying max typos on the buckets
-    let bucket_max_typos = match opts.max_typos {
-        Some(0..=1) => None,
-        None => None,
-        Some(max_typos) => Some(max_typos),
-    };
+    let needle_bitmask = string_to_bitmask(needle.as_bytes());
 
     for (i, haystack) in haystacks.iter().enumerate() {
         // Pick the bucket to insert into based on the length of the haystack
@@ -91,11 +86,19 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         // Perform a fast path with memchr if there are no typos or 1 typo
         // This makes the algorithm 6x faster in the case of no matches
         // in the haystack
-        let prefilter = match opts.max_typos {
-            Some(0) => prefilter(&needle_lower, haystack),
-            Some(1) => prefilter_with_typo(&needle_lower, haystack),
-            _ => true,
-        };
+        let prefilter = !opts.prefilter
+            || match opts.max_typos {
+                Some(0) => {
+                    needle_bitmask & string_to_bitmask_simd(haystack.as_bytes()) == needle_bitmask
+                }
+                // TODO: skip this when typos > 2?
+                Some(max) => {
+                    (needle_bitmask & string_to_bitmask_simd(haystack.as_bytes()) ^ needle_bitmask)
+                        .count_ones()
+                        <= max as u32
+                }
+                _ => true,
+            };
         if !prefilter {
             continue;
         }
@@ -104,13 +107,13 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         bucket.add_haystack(haystack, i);
 
         if bucket.is_full() {
-            bucket.process(&mut matches, needle, opts.min_score, bucket_max_typos);
+            bucket.process(&mut matches, needle, opts.min_score, opts.max_typos);
         }
     }
 
     // Iterate over the bucket with remaining elements
     for bucket in buckets.iter_mut() {
-        bucket.process(&mut matches, needle, opts.min_score, bucket_max_typos);
+        bucket.process(&mut matches, needle, opts.min_score, opts.max_typos);
     }
 
     // Sorting
@@ -148,23 +151,11 @@ pub fn match_list_for_matched_indices(needle: &str, haystacks: &[&str]) -> Vec<V
     matched_indices_arr
 }
 
-fn prefilter(needle: &str, haystack: &str) -> bool {
-    if needle.len() > haystack.len() {
-        return false;
-    }
-    prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
-}
-fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
-    if needle.len() > haystack.len() + 1 {
-        return false;
-    }
-    prefilter_ascii_with_typo(needle.as_bytes(), haystack.as_bytes()).is_some()
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct Options {
-    /// Populate score matrix and perform traceback to get the indices of the matching characters
-    pub indices: bool,
+    /// Performs prefiltering when the max number of typos is <= 1, which drastically improves
+    /// performance when most of the haystack does not match (<10% matching)
+    pub prefilter: bool,
     /// Minimum score of an item to return a result. Generally, needle.len() * 6 will  be a good
     /// default
     pub min_score: u16,
@@ -181,11 +172,45 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Options {
-            indices: false,
+            prefilter: true,
+            min_score: 0,
             max_typos: None,
             stable_sort: true,
             unstable_sort: false,
-            min_score: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic() {
+        let needle = "deadbe";
+        let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
+
+        let matches = match_list(needle, &haystack, Options::default());
+        assert_eq!(matches.len(), 4);
+        assert_eq!(matches[0].index_in_haystack, 3);
+        assert_eq!(matches[1].index_in_haystack, 0);
+        assert_eq!(matches[2].index_in_haystack, 2);
+        assert_eq!(matches[3].index_in_haystack, 1);
+    }
+
+    #[test]
+    fn test_no_typos() {
+        let needle = "deadbe";
+        let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
+
+        let matches = match_list(
+            needle,
+            &haystack,
+            Options {
+                max_typos: Some(0),
+                ..Options::default()
+            },
+        );
+        assert_eq!(matches.len(), 3);
     }
 }
