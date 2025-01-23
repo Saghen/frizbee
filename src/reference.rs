@@ -256,7 +256,8 @@ mod tests {
     fn test_score_capital_bonus() {
         assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(get_score("D", "forDist"), CHAR_SCORE);
+        assert_eq!(get_score("D", "forDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
+        assert_eq!(get_score("D", "foRDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
     }
 
     #[test]

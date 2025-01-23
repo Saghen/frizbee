@@ -255,13 +255,16 @@ pub(crate) fn smith_waterman_inner<N, const W: usize, const L: usize>(
         let diag_score: Simd<N, L> = match_mask.select(
             diag + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC)
                 + if haystack_idx > 0 {
+                    let prev_haystack_char = haystack[haystack_idx - 1];
+
                     // ignore capitalization on the prefix
-                    let capitalization_bonus = haystack_char
-                        .is_capital_mask
-                        .select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
+                    let capitalization_bonus_mask: Mask<N::Mask, L> =
+                        haystack_char.is_capital_mask & prev_haystack_char.is_capital_mask.not();
+                    let capitalization_bonus =
+                        capitalization_bonus_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
 
                     let delimiter_bonus_mask: Mask<N::Mask, L> =
-                        haystack[haystack_idx - 1].is_delimiter_mask & delimiter_bonus_enabled_mask;
+                        prev_haystack_char.is_delimiter_mask & delimiter_bonus_enabled_mask;
                     let delimiter_bonus =
                         delimiter_bonus_mask.select(N::DELIMITER_BONUS, N::ZERO_VEC);
 
@@ -515,7 +518,8 @@ mod tests {
     fn test_score_capital_bonus() {
         assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(get_score("D", "forDist"), CHAR_SCORE);
+        assert_eq!(get_score("D", "forDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
+        assert_eq!(get_score("D", "foRDist"), CHAR_SCORE);
     }
 
     #[test]

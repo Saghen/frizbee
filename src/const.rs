@@ -14,10 +14,8 @@ pub const GAP_EXTEND_PENALTY: u16 = 1; // -1
 pub const PREFIX_BONUS: u16 = 6;
 // bonus for matching character after a delimiter in the haystack (e.g. space, comma, underscore, slash, etc)
 pub const DELIMITER_BONUS: u16 = 4;
-// bonus for matching a letter that is capitalized on the haystackA
-// FIXME: temporarily disabled until we can apply only when the char before the capital is
-// lowercase
-pub const CAPITALIZATION_BONUS: u16 = 0;
+// bonus for matching a letter that is capitalized on the haystack, if the character before it was lowercase
+pub const CAPITALIZATION_BONUS: u16 = 4;
 pub const MATCHING_CASE_BONUS: u16 = 2;
 // bonus for haystack == needle
 pub const EXACT_MATCH_BONUS: u16 = 4;
