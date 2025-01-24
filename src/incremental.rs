@@ -4,9 +4,7 @@ use std::{
 };
 
 use crate::{
-    simd::{
-        prepare_haystack_dynamic_width, smith_waterman_inner, HaystackChar, NeedleChar, SimdNum,
-    },
+    simd::{smith_waterman_inner, HaystackChar, NeedleChar, SimdNum},
     Match, Options,
 };
 
@@ -30,11 +28,15 @@ where
 {
     pub fn new(haystacks: &[&str; L], idxs: [usize; L], length: usize) -> Self {
         let width = haystacks[0..length].iter().map(|&x| x.len()).max().unwrap();
+        let haystack = (0..width)
+            .into_iter()
+            .map(|i| HaystackChar::from_haystacks(haystacks, i))
+            .collect();
         Self {
             length,
             width,
             idxs,
-            haystacks: prepare_haystack_dynamic_width(width, haystacks),
+            haystacks: haystack,
             score_matrix: vec![],
         }
     }

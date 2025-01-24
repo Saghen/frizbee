@@ -194,50 +194,16 @@ where
             is_delimiter_mask,
         }
     }
-}
 
-#[inline(always)]
-pub(crate) fn prepare_haystack<N, const W: usize, const L: usize>(
-    haystacks: &[&str; L],
-) -> [HaystackChar<N, L>; W]
-where
-    N: SimdNum<L>,
-    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    Simd<N, L>: SimdVec<N, L>,
-    Mask<N::Mask, L>: SimdMask<N, L>,
-{
-    std::array::from_fn(|i| {
+    #[inline(always)]
+    pub(crate) fn from_haystacks(haystacks: &[&str; L], i: usize) -> Self {
         // Convert haystacks to a static array of bytes chunked for SIMD
         let chars = std::array::from_fn(|j| {
             N::from(*haystacks[j].as_bytes().get(i).to_owned().unwrap_or(&0))
         });
         // pre-compute haystack case mask, delimiter mask, and lowercase
         HaystackChar::new(Simd::from_array(chars))
-    })
-}
-
-#[inline(always)]
-pub(crate) fn prepare_haystack_dynamic_width<N, const L: usize>(
-    width: usize,
-    haystacks: &[&str; L],
-) -> Box<[HaystackChar<N, L>]>
-where
-    N: SimdNum<L>,
-    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    Simd<N, L>: SimdVec<N, L>,
-    Mask<N::Mask, L>: SimdMask<N, L>,
-{
-    (0..width)
-        .into_iter()
-        .map(|i| {
-            // Convert haystacks to a static array of bytes chunked for SIMD
-            let chars = std::array::from_fn(|j| {
-                N::from(*haystacks[j].as_bytes().get(i).to_owned().unwrap_or(&0))
-            });
-            // pre-compute haystack case mask, delimiter mask, and lowercase
-            HaystackChar::new(Simd::from_array(chars))
-        })
-        .collect()
+    }
 }
 
 #[inline(always)]
@@ -343,7 +309,8 @@ where
     let needle = needle.as_bytes();
     let width = haystacks.map(|x| x.len()).into_iter().max().unwrap();
 
-    let haystack = prepare_haystack::<N, W, L>(haystacks);
+    let haystack: [HaystackChar<N, L>; W] =
+        std::array::from_fn(|i| HaystackChar::from_haystacks(haystacks, i));
 
     // State
     let mut score_matrix = vec![[N::ZERO_VEC; W]; needle.len()];
