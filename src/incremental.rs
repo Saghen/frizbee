@@ -52,13 +52,6 @@ where
     ) {
         self.score_matrix.truncate(prefix_to_keep);
 
-        let mut all_time_max_score = N::ZERO_VEC;
-        for score_col in self.score_matrix.iter() {
-            for score in score_col {
-                all_time_max_score = score.simd_max(all_time_max_score);
-            }
-        }
-
         self.score_matrix.extend(std::iter::repeat_n(
             vec![N::ZERO_VEC; self.width].into_boxed_slice(),
             new_needle_chars.len(),
@@ -80,13 +73,17 @@ where
                 &self.haystacks,
                 prev_score_col,
                 curr_score_col,
-                &mut all_time_max_score,
             );
         }
 
+        let mut all_time_max_score = N::ZERO_VEC;
+        for score_col in self.score_matrix.iter() {
+            for score in score_col {
+                all_time_max_score = score.simd_max(all_time_max_score);
+            }
+        }
+
         // TODO: DRY w/ smith_waterman
-        // possibly compute all_time_max_scores seperately and after from smith_waterman (will
-        // probably help cache locality)
         let scores: [u16; L] = std::array::from_fn(|i| {
             let score = all_time_max_score[i].into();
             // TODO: exact match bonus - this is going to be tricky becayse raw haystacks aren't
