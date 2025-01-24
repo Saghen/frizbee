@@ -213,7 +213,6 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
     haystack: &[HaystackChar<N, L>],
     prev_score_col: Option<&[Simd<N, L>]>,
     curr_score_col: &mut [Simd<N, L>],
-    all_time_max_score: &mut Simd<N, L>,
 ) where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
@@ -290,7 +289,6 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
         curr_score_col[haystack_idx] = max_score;
 
         // Store the maximum score across all runs
-        *all_time_max_score = all_time_max_score.simd_max(max_score);
     }
 }
 
@@ -314,7 +312,6 @@ where
 
     // State
     let mut score_matrix = vec![[N::ZERO_VEC; W]; needle.len()];
-    let mut all_time_max_score = N::ZERO_VEC;
 
     for needle_idx in 0..needle.len() {
         let needle_char = NeedleChar::new(N::from(needle[needle_idx]));
@@ -332,15 +329,21 @@ where
             &haystack,
             prev_score_col,
             curr_score_col,
-            &mut all_time_max_score,
         );
     }
 
     let exact_matches = std::array::from_fn(|i| haystacks[i] == needle_str);
 
+    let mut all_time_max_score = N::ZERO_VEC;
+    for score_col in score_matrix.iter() {
+        for score in score_col {
+            all_time_max_score = score.simd_max(all_time_max_score);
+        }
+    }
+
     let max_scores_vec = std::array::from_fn(|i| {
         let mut score = all_time_max_score[i].into();
-        if haystacks[i] == needle_str {
+        if exact_matches[i] {
             score += EXACT_MATCH_BONUS;
         }
         score
