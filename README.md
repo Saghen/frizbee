@@ -15,7 +15,7 @@ let matches = match_list(needle, &haystacks, Options::default());
 
 ## Benchmarks
 
-Benchmarks were run on a Ryzen 7 3700X, with `-C target-cpu=native`. Results with different needle, partial match percentage, match percentage, median length, and number of samples are in the works. You may test these cases yourself via the included benchmarks.
+Benchmarks were run on a Ryzen 7 3700X, with `-C target-cpu=native`. Results with different needles, partial match percentage, match percentage, median length, and number of samples are in the works. You may test these cases yourself via the included benchmarks.
 
 ```rust
 needle: "deadbe"
