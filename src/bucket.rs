@@ -95,6 +95,8 @@ where
             matches.push(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
+                // TODO: move match characteristics that give bonus to where bonus is calculated
+                exact: self.haystacks[idx] == needle,
                 indices: None,
             });
         }

@@ -30,6 +30,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             .map(|(i, _)| Match {
                 index_in_haystack: i,
                 score: 0,
+                exact: false,
                 indices: None,
             })
             .collect();
@@ -212,5 +213,33 @@ mod tests {
             },
         );
         assert_eq!(matches.len(), 3);
+    }
+
+    #[test]
+    fn test_exact_match() {
+        let needle = "deadbe";
+        let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
+
+        let matches = match_list(needle, &haystack, Options::default());
+
+        assert_eq!(matches.iter().filter(|m| m.exact).count(), 1);
+    }
+
+    #[test]
+    fn test_exact_matches() {
+        let needle = "deadbe";
+        let haystack = vec![
+            "deadbe",
+            "deadbeef",
+            "deadbe",
+            "deadbf",
+            "deadbe",
+            "deadbeefg",
+            "deadbe",
+        ];
+
+        let matches = match_list(needle, &haystack, Options::default());
+
+        assert_eq!(matches.iter().filter(|m| m.exact).count(), 4);
     }
 }
