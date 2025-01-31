@@ -222,7 +222,11 @@ mod tests {
 
         let matches = match_list(needle, &haystack, Options::default());
 
-        assert_eq!(matches.iter().filter(|m| m.exact).count(), 1);
+        let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
+        assert_eq!(exact_matches.len(), 1);
+        for m in &exact_matches {
+            assert_eq!(haystack[m.index_in_haystack], needle)
+        }
     }
 
     #[test]
@@ -240,6 +244,10 @@ mod tests {
 
         let matches = match_list(needle, &haystack, Options::default());
 
-        assert_eq!(matches.iter().filter(|m| m.exact).count(), 4);
+        let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
+        assert_eq!(exact_matches.len(), 4);
+        for m in &exact_matches {
+            assert_eq!(haystack[m.index_in_haystack], needle)
+        }
     }
 }
