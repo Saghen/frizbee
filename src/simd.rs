@@ -122,7 +122,7 @@ simd_num_impl!(u16, 1, 2, 4, 8, 16, 32);
 pub fn smith_waterman<N, const W: usize, const L: usize>(
     needle: &str,
     haystacks: &[&str; L],
-) -> ([u16; L], Vec<[Simd<N, L>; W]>)
+) -> ([u16; L], Vec<[Simd<N, L>; W]>, [bool; L])
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
@@ -240,15 +240,20 @@ where
         }
     }
 
+    let mut exact_matches = [false; L];
+    for i in 0..L {
+        exact_matches[i] = haystacks[i] == needle_str;
+    }
+
     let mut max_scores_vec = [0u16; L];
     for i in 0..L {
         max_scores_vec[i] = all_time_max_score[i].into();
-        if haystacks[i] == needle_str {
+        if exact_matches[i] {
             max_scores_vec[i] += EXACT_MATCH_BONUS;
         }
     }
 
-    (max_scores_vec, score_matrix)
+    (max_scores_vec, score_matrix, exact_matches)
 }
 
 pub fn typos_from_score_matrix<N, const W: usize, const L: usize>(
