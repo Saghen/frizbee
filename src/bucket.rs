@@ -75,7 +75,8 @@ where
             return;
         }
 
-        let (scores, score_matrix) = smith_waterman::<N, W, L>(needle, &self.haystacks);
+        let (scores, score_matrix, exact_matches) =
+            smith_waterman::<N, W, L>(needle, &self.haystacks);
 
         let typos = max_typos.map(|_| typos_from_score_matrix::<N, W, L>(&score_matrix));
         #[allow(clippy::needless_range_loop)]
@@ -95,8 +96,7 @@ where
             matches.push(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
-                // TODO: move match characteristics that give bonus to where bonus is calculated
-                exact: self.haystacks[idx] == needle,
+                exact: exact_matches[idx],
                 indices: None,
             });
         }
