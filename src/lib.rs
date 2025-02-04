@@ -224,6 +224,7 @@ mod tests {
 
         let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
         assert_eq!(exact_matches.len(), 1);
+        assert_eq!(exact_matches[0].index_in_haystack, 3);
         for m in &exact_matches {
             assert_eq!(haystack[m.index_in_haystack], needle)
         }
