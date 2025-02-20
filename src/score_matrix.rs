@@ -182,9 +182,6 @@ pub fn char_indices_from_scores(
 
         let (mut row_idx, mut col_idx) = initial_idx;
         let mut score = score_matrices[col_idx][row_idx][idx];
-        if score > 0 {
-            indices.insert(row_idx - 1);
-        }
 
         // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
         while score > 0 {
@@ -203,8 +200,8 @@ pub fn char_indices_from_scores(
 
                 // Check if the score decreases (remember we're going backwards)
                 // to see if we've found a match
-                if new_score < score && new_score > 0 {
-                    indices.insert(row_idx - 1);
+                if new_score < score {
+                    indices.insert(row_idx);
                 }
             }
             // Up (gap in haystack)
@@ -337,5 +334,12 @@ mod tests {
         assert_eq!(run_single_indices("a", "A"), vec![0]);
         assert_eq!(run_single_indices("A", "Aa"), vec![0]);
         assert_eq!(run_single_indices("D", "forDist"), vec![3]);
+    }
+
+    #[test]
+    fn test_typo_indices() {
+        assert_eq!(run_single_indices("b", "a"), vec![]);
+        assert_eq!(run_single_indices("reba", "repack"), vec![0, 1, 3]);
+        assert_eq!(run_single_indices("bbb", "abc"), vec![1]);
     }
 }
