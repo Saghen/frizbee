@@ -4,7 +4,6 @@ mod bitmask;
 mod bucket;
 pub mod r#const;
 mod match_;
-mod prefilter;
 mod reference;
 pub mod score_matrix;
 pub mod simd;

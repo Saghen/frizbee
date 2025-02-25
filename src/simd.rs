@@ -420,5 +420,6 @@ mod tests {
     #[test]
     fn test_score_prefix_beats_delimiter() {
         assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"),);
+        assert!(get_score("_", "_private_member") > get_score("_", "public_member"),);
     }
 }
