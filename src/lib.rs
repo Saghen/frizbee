@@ -83,7 +83,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             _ => continue,
         };
 
-        // Perform a fast path with memchr if there are no typos or 1 typo
+        // Perform a fast path with bitmasking if there are no typos or 1 typo
         // This makes the algorithm 6x faster in the case of no matches
         // in the haystack
         let prefilter = !opts.prefilter

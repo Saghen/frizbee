@@ -219,7 +219,6 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai-callgrind",
- "memchr",
  "nucleo-matcher",
  "rand",
  "rand_distr",
