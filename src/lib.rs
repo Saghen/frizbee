@@ -199,6 +199,18 @@ mod tests {
     }
 
     #[test]
+    fn test_long() {
+        let needle = "B";
+        let long_word: String = std::iter::repeat("B").take(513).collect();
+        let haystack = vec!["A",long_word.as_str()];
+
+        let matches = match_list(needle, &haystack, Options::default());
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].index_in_haystack, 1);
+    }
+
+
+    #[test]
     fn test_no_typos() {
         let needle = "deadbe";
         let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
