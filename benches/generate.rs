@@ -1,5 +1,5 @@
-use rand::{distributions, prelude::*};
-use rand_distr::{Distribution, Normal};
+use rand::prelude::*;
+use rand_distr::{Alphanumeric, Distribution, Normal};
 
 enum MatchType {
     None,
@@ -36,10 +36,10 @@ pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Ve
 
     (0..options.num_samples)
         .map(|_| {
-            let mut rng = StdRng::seed_from_u64(rng.gen());
+            let mut rng = StdRng::seed_from_u64(rng.random());
 
             // Decide if this entry should be a match
-            let match_type = match rng.gen::<f64>() {
+            let match_type = match rng.random::<f64>() {
                 x if x < options.partial_match_percentage => MatchType::Partial,
                 x if x < options.partial_match_percentage + options.match_percentage => {
                     MatchType::Full
@@ -54,7 +54,7 @@ pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Ve
                 // Generate a random alphanumeric string of the desired length
                 // skipping any characters that are in the needle
                 MatchType::None => rng
-                    .sample_iter(&distributions::Alphanumeric)
+                    .sample_iter(&Alphanumeric)
                     .filter(|c| !needle.contains(&c.to_string()))
                     .map(char::from)
                     .take(length)
@@ -64,7 +64,7 @@ pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Ve
                 // characters
                 MatchType::Partial => {
                     // Get random characters from the needle
-                    let match_count = rng.gen_range(0..length.min(needle.len()));
+                    let match_count = rng.random_range(0..length.min(needle.len()));
                     let needle_chars = generate_unique_indices(match_count, needle.len(), &mut rng)
                         .into_iter()
                         .map(|i| needle.chars().nth(i).unwrap())
@@ -72,7 +72,7 @@ pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Ve
 
                     // Get remaining characters to fill the remaining length randomly
                     let remaining_chars = (match_count..length)
-                        .map(|_| rng.sample(distributions::Alphanumeric).into())
+                        .map(|_| rng.sample(Alphanumeric).into())
                         .collect::<Vec<char>>();
 
                     join_randomly(&needle_chars, &remaining_chars, &mut rng)
@@ -87,7 +87,7 @@ pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Ve
                 MatchType::Full => {
                     let needle_chars = needle.chars().collect::<Vec<char>>();
                     let remaining_chars = (0..(length.saturating_sub(needle.len())))
-                        .map(|_| rng.sample(distributions::Alphanumeric).into())
+                        .map(|_| rng.sample(Alphanumeric).into())
                         .collect::<Vec<char>>();
 
                     join_randomly(&needle_chars, &remaining_chars, &mut rng)
@@ -129,7 +129,7 @@ where
     let mut b_index = 0;
     let mut result = Vec::new();
     while a_index < a.len() && b_index < b.len() {
-        if rng.gen::<f64>() < pick_chance {
+        if rng.random::<f64>() < pick_chance {
             result.push(a[a_index]);
             a_index += 1;
         } else {
