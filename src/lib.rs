@@ -4,6 +4,7 @@ mod bitmask;
 mod bucket;
 pub mod r#const;
 mod match_;
+mod prefilter;
 mod reference;
 pub mod score_matrix;
 pub mod simd;
@@ -92,6 +93,11 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         // in the haystack
         let prefilter = !opts.prefilter
             || match opts.max_typos {
+                // Use memchr for prefiltering when the haystack is too long
+                Some(0) if bucket_idx >= 5 => prefilter::prefilter(needle, *haystack),
+                Some(1) if bucket_idx >= 4 => prefilter::prefilter_with_typo(needle, *haystack),
+
+                // Othewrise, use bitmasking
                 Some(0) => {
                     needle_bitmask & string_to_bitmask_simd(haystack.as_bytes()) == needle_bitmask
                 }

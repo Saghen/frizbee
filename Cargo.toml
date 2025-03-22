@@ -22,3 +22,6 @@ harness = false
 [[bench]]
 name = "smith_waterman_iai"
 harness = false
+
+[dependencies]
+memchr = "2.7.4"

@@ -1,6 +1,6 @@
 # Frizbee
 
-Frizbee is a dependency free SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2x (18.4us vs 35.8us). It matches against characters directly, ignoring unicode.
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2x (18.4us vs 35.8us). It matches against characters directly, ignoring unicode.
 
 ## Usage
 
