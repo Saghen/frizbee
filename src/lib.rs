@@ -37,7 +37,7 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
 
     let mut matches = Vec::with_capacity(haystacks.len());
 
-    let mut buckets: [Box<dyn Bucket>; 17] = [
+    let mut buckets: [Box<dyn Bucket>; 19] = [
         Box::new(FixedWidthBucket::<u8, 4, 16>::new()),
         Box::new(FixedWidthBucket::<u8, 8, 16>::new()),
         Box::new(FixedWidthBucket::<u8, 12, 16>::new()),
@@ -55,6 +55,8 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
         Box::new(FixedWidthBucket::<u16, 256, 8>::new()),
         Box::new(FixedWidthBucket::<u16, 384, 8>::new()),
         Box::new(FixedWidthBucket::<u16, 512, 8>::new()),
+        Box::new(FixedWidthBucket::<u16, 768, 8>::new()),
+        Box::new(FixedWidthBucket::<u16, 1024, 8>::new()),
     ];
 
     let needle_bitmask = string_to_bitmask(needle.as_bytes());
@@ -79,6 +81,8 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             225..=256 => 14,
             257..=384 => 15,
             385..=512 => 16,
+            513..=768 => 17,
+            769..=1024 => 18,
             // TODO: should return score = 0 or fallback to prefilter
             _ => continue,
         };
