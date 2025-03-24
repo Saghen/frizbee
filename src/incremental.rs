@@ -107,6 +107,7 @@ where
                 index_in_haystack: score_idx,
                 score: scores[idx],
                 indices: None,
+                exact: false,
             });
         }
     }
@@ -120,7 +121,7 @@ pub struct IncrementalMatcher {
 }
 
 impl IncrementalMatcher {
-    pub fn new(haystacks: Vec<&str>) -> Self {
+    pub fn new(haystacks: &Vec<&str>) -> Self {
         // group haystacks into buckets by length
 
         // TODO: prefiltering? If yes, then haystacks can't be put into buckets yet
@@ -252,7 +253,7 @@ mod tests {
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        let mut matcher = IncrementalMatcher::new(vec![haystack]);
+        let mut matcher = IncrementalMatcher::new(&vec![haystack]);
         matcher.match_needle(needle, Options::default())[0].score
     }
 

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use frizbee::*;
+use frizbee::{incremental::IncrementalMatcher, *};
 use generate::generate_haystack;
 use nucleo_matcher::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
@@ -33,6 +33,12 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&haystack_ref),
                 Options::default(),
             )
+        })
+    });
+    c.bench_function("frizbee_incremental", |b| {
+        b.iter(|| {
+            IncrementalMatcher::new(black_box(&haystack_ref))
+                .match_needle(black_box(needle), Options::default())
         })
     });
     c.bench_function("frizbee_0_typos", |b| {
