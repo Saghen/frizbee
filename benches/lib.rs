@@ -81,12 +81,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         let mut matcher = Matcher::new(Config::DEFAULT);
         let atom = Atom::new(
             needle,
-            CaseMatching::Respect,
+            CaseMatching::Ignore,
             Normalization::Never,
             AtomKind::Fuzzy,
             false,
         );
-        b.iter(|| atom.match_list(haystack.iter(), &mut matcher))
+        b.iter(|| atom.match_list(black_box(haystack.iter()), &mut matcher))
     });
 }
 
