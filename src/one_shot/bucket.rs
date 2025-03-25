@@ -1,21 +1,22 @@
 use std::marker::PhantomData;
 
+use crate::prefilter::bitmask::string_to_bitmask_simd;
+use crate::prefilter::memchr;
 use crate::smith_waterman::simd::{
     smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
 };
-use crate::Match;
+use crate::{Match, Options};
+
+#[derive(Debug, Clone, Copy)]
+enum PrefilterMethod {
+    None,
+    Memchr,
+    Bitmask,
+}
 
 pub(crate) trait Bucket<'a> {
-    fn add_haystack(&mut self, haystack: &'a str, idx: usize);
-    fn is_full(&self) -> bool;
-    fn process(
-        &mut self,
-        matches: &mut Vec<Match>,
-        needle: &str,
-        min_score: u16,
-        max_typos: Option<u16>,
-    );
-    fn reset(&mut self);
+    fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize);
+    fn finalize(&mut self, matches: &mut Vec<Match>);
 }
 
 pub(crate) struct FixedWidthBucket<'a, N: SimdNum<L>, const W: usize, const L: usize>
@@ -23,23 +24,39 @@ where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
     length: usize,
+    needle: &'a str,
+    needle_bitmask: u64,
     haystacks: [&'a str; L],
     idxs: [usize; L],
+    min_score: u16,
+    max_typos: Option<u16>,
+    prefilter: PrefilterMethod,
     _phantom: PhantomData<N>,
 }
 
-impl<N: SimdNum<L>, const W: usize, const L: usize> FixedWidthBucket<'_, N, W, L>
+impl<'a, N: SimdNum<L>, const W: usize, const L: usize> FixedWidthBucket<'a, N, W, L>
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
     std::simd::Simd<N, L>: SimdVec<N, L>,
     std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
-    pub fn new() -> Self {
+    pub fn new(needle: &'a str, needle_bitmask: u64, opts: &Options) -> Self {
         FixedWidthBucket {
             length: 0,
+            needle,
+            needle_bitmask,
             haystacks: [""; L],
             idxs: [0; L],
+            min_score: opts.min_score,
+            max_typos: opts.max_typos,
+            prefilter: match (opts.prefilter, opts.max_typos) {
+                (false, _) => PrefilterMethod::None,
+                (_, None) => PrefilterMethod::None,
+                (true, Some(0)) if L >= 24 => PrefilterMethod::Memchr,
+                (true, Some(1)) if L >= 20 => PrefilterMethod::Memchr,
+                (true, _) => PrefilterMethod::Bitmask,
+            },
             _phantom: PhantomData,
         }
     }
@@ -52,45 +69,65 @@ where
     std::simd::Simd<N, L>: SimdVec<N, L>,
     std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
-    fn add_haystack(&mut self, haystack: &'a str, idx: usize) {
-        assert!(haystack.len() <= W);
-        if self.length == L {
-            return;
+    fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize) {
+        if !matches!(self.prefilter, PrefilterMethod::None) {
+            let matched = match (self.prefilter, self.max_typos) {
+                (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
+                (PrefilterMethod::Memchr, Some(1)) => {
+                    memchr::prefilter_with_typo(self.needle, haystack)
+                }
+
+                (PrefilterMethod::Bitmask, Some(0)) => {
+                    self.needle_bitmask & string_to_bitmask_simd(haystack.as_bytes())
+                        == self.needle_bitmask
+                }
+                // TODO: skip this when typos > 2?
+                (PrefilterMethod::Bitmask, Some(max)) => {
+                    (self.needle_bitmask & string_to_bitmask_simd(haystack.as_bytes())
+                        ^ self.needle_bitmask)
+                        .count_ones()
+                        <= max as u32
+                }
+                _ => true,
+            };
+            if !matched {
+                return;
+            }
         }
+
         self.haystacks[self.length] = haystack;
         self.idxs[self.length] = idx;
         self.length += 1;
+
+        if self.length == L {
+            self.finalize(matches);
+        }
     }
 
-    fn is_full(&self) -> bool {
-        self.length == L
-    }
-
-    fn process(
-        &mut self,
-        matches: &mut Vec<Match>,
-        needle: &str,
-        min_score: u16,
-        max_typos: Option<u16>,
-    ) {
+    fn finalize(&mut self, matches: &mut Vec<Match>) {
         if self.length == 0 {
             return;
         }
 
         let (scores, score_matrix, exact_matches) =
-            smith_waterman::<N, W, L>(needle, &self.haystacks);
+            smith_waterman::<N, W, L>(self.needle, &self.haystacks);
 
-        let typos = max_typos.map(|_| typos_from_score_matrix::<N, W, L>(&score_matrix));
+        let typos = self
+            .max_typos
+            .map(|_| typos_from_score_matrix::<N, W, L>(&score_matrix));
+
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
             let score = scores[idx];
-            if score < min_score {
+            if score < self.min_score {
                 continue;
             }
 
-            if let Some(max_typos) = max_typos {
-                if typos.is_some_and(|typos| typos[idx] > max_typos) {
-                    continue;
+            if !matches!(self.prefilter, PrefilterMethod::Memchr) {
+                if let Some(max_typos) = self.max_typos {
+                    if typos.is_some_and(|typos| typos[idx] > max_typos) {
+                        continue;
+                    }
                 }
             }
 
@@ -103,10 +140,6 @@ where
             });
         }
 
-        self.reset();
-    }
-
-    fn reset(&mut self) {
         self.length = 0;
     }
 }

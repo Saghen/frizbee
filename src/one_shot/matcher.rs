@@ -1,6 +1,5 @@
 use super::bucket::{Bucket, FixedWidthBucket};
-use crate::prefilter::bitmask::{string_to_bitmask, string_to_bitmask_simd};
-use crate::prefilter::memchr;
+use crate::prefilter::bitmask::string_to_bitmask;
 use crate::{Match, Options};
 use std::cmp::Reverse;
 
@@ -23,103 +22,177 @@ pub fn match_list(needle: &str, haystacks: &[&str], opts: Options) -> Vec<Match>
             .collect();
     }
 
-    let mut matches = Vec::with_capacity(haystacks.len());
-
-    let mut buckets: [Box<dyn Bucket>; 19] = [
-        Box::new(FixedWidthBucket::<u8, 4, 16>::new()),
-        Box::new(FixedWidthBucket::<u8, 8, 16>::new()),
-        Box::new(FixedWidthBucket::<u8, 12, 16>::new()),
-        Box::new(FixedWidthBucket::<u8, 16, 16>::new()),
-        Box::new(FixedWidthBucket::<u8, 20, 16>::new()),
-        Box::new(FixedWidthBucket::<u8, 24, 16>::new()),
-        Box::new(FixedWidthBucket::<u16, 32, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 48, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 64, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 96, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 128, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 160, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 192, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 224, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 256, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 384, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 512, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 768, 8>::new()),
-        Box::new(FixedWidthBucket::<u16, 1024, 8>::new()),
-    ];
-
     let needle_bitmask = string_to_bitmask(needle.as_bytes());
+    
+    // Lazy bucket initialization - buckets are created only when needed
+    let mut bucket_size_4: Option<FixedWidthBucket<u8, 4, 16>> = None;
+    let mut bucket_size_8: Option<FixedWidthBucket<u8, 8, 16>> = None;
+    let mut bucket_size_12: Option<FixedWidthBucket<u8, 12, 16>> = None;
+    let mut bucket_size_16: Option<FixedWidthBucket<u8, 16, 16>> = None;
+    let mut bucket_size_20: Option<FixedWidthBucket<u8, 20, 16>> = None;
+    let mut bucket_size_24: Option<FixedWidthBucket<u8, 24, 16>> = None;
+    let mut bucket_size_32: Option<FixedWidthBucket<u16, 32, 8>> = None;
+    let mut bucket_size_48: Option<FixedWidthBucket<u16, 48, 8>> = None;
+    let mut bucket_size_64: Option<FixedWidthBucket<u16, 64, 8>> = None;
+    let mut bucket_size_96: Option<FixedWidthBucket<u16, 96, 8>> = None;
+    let mut bucket_size_128: Option<FixedWidthBucket<u16, 128, 8>> = None;
+    let mut bucket_size_160: Option<FixedWidthBucket<u16, 160, 8>> = None;
+    let mut bucket_size_192: Option<FixedWidthBucket<u16, 192, 8>> = None;
+    let mut bucket_size_224: Option<FixedWidthBucket<u16, 224, 8>> = None;
+    let mut bucket_size_256: Option<FixedWidthBucket<u16, 256, 8>> = None;
+    let mut bucket_size_384: Option<FixedWidthBucket<u16, 384, 8>> = None;
+    let mut bucket_size_512: Option<FixedWidthBucket<u16, 512, 8>> = None;
+    let mut bucket_size_768: Option<FixedWidthBucket<u16, 768, 8>> = None;
+    let mut bucket_size_1024: Option<FixedWidthBucket<u16, 1024, 8>> = None;
+
+    let mut matches = if opts.max_typos == None {
+        Vec::with_capacity(haystacks.len())
+    } else {
+        vec![]
+    };
 
     for (i, haystack) in haystacks.iter().enumerate() {
         // Pick the bucket to insert into based on the length of the haystack
-        let bucket_idx = match haystack.len() {
-            0..=4 => 0,
-            5..=8 => 1,
-            9..=12 => 2,
-            13..=16 => 3,
-            17..=20 => 4,
-            21..=24 => 5,
-            25..=32 => 6,
-            33..=48 => 7,
-            49..=64 => 8,
-            65..=96 => 9,
-            97..=128 => 10,
-            129..=160 => 11,
-            161..=192 => 12,
-            193..=224 => 13,
-            225..=256 => 14,
-            257..=384 => 15,
-            385..=512 => 16,
-            513..=768 => 17,
-            769..=1024 => 18,
-            // TODO: should return score = 0 or fallback to prefilter
+        match haystack.len() {
+            0..=4 => {
+                if bucket_size_4.is_none() {
+                    bucket_size_4 = Some(FixedWidthBucket::<u8, 4, 16>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_4.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            5..=8 => {
+                if bucket_size_8.is_none() {
+                    bucket_size_8 = Some(FixedWidthBucket::<u8, 8, 16>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_8.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            9..=12 => {
+                if bucket_size_12.is_none() {
+                    bucket_size_12 = Some(FixedWidthBucket::<u8, 12, 16>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_12.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            13..=16 => {
+                if bucket_size_16.is_none() {
+                    bucket_size_16 = Some(FixedWidthBucket::<u8, 16, 16>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_16.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            17..=20 => {
+                if bucket_size_20.is_none() {
+                    bucket_size_20 = Some(FixedWidthBucket::<u8, 20, 16>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_20.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            21..=24 => {
+                if bucket_size_24.is_none() {
+                    bucket_size_24 = Some(FixedWidthBucket::<u8, 24, 16>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_24.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            25..=32 => {
+                if bucket_size_32.is_none() {
+                    bucket_size_32 = Some(FixedWidthBucket::<u16, 32, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_32.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            33..=48 => {
+                if bucket_size_48.is_none() {
+                    bucket_size_48 = Some(FixedWidthBucket::<u16, 48, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_48.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            49..=64 => {
+                if bucket_size_64.is_none() {
+                    bucket_size_64 = Some(FixedWidthBucket::<u16, 64, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_64.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            65..=96 => {
+                if bucket_size_96.is_none() {
+                    bucket_size_96 = Some(FixedWidthBucket::<u16, 96, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_96.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            97..=128 => {
+                if bucket_size_128.is_none() {
+                    bucket_size_128 = Some(FixedWidthBucket::<u16, 128, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_128.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            129..=160 => {
+                if bucket_size_160.is_none() {
+                    bucket_size_160 = Some(FixedWidthBucket::<u16, 160, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_160.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            161..=192 => {
+                if bucket_size_192.is_none() {
+                    bucket_size_192 = Some(FixedWidthBucket::<u16, 192, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_192.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            193..=224 => {
+                if bucket_size_224.is_none() {
+                    bucket_size_224 = Some(FixedWidthBucket::<u16, 224, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_224.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            225..=256 => {
+                if bucket_size_256.is_none() {
+                    bucket_size_256 = Some(FixedWidthBucket::<u16, 256, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_256.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            257..=384 => {
+                if bucket_size_384.is_none() {
+                    bucket_size_384 = Some(FixedWidthBucket::<u16, 384, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_384.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            385..=512 => {
+                if bucket_size_512.is_none() {
+                    bucket_size_512 = Some(FixedWidthBucket::<u16, 512, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_512.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            513..=768 => {
+                if bucket_size_768.is_none() {
+                    bucket_size_768 = Some(FixedWidthBucket::<u16, 768, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_768.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            769..=1024 => {
+                if bucket_size_1024.is_none() {
+                    bucket_size_1024 = Some(FixedWidthBucket::<u16, 1024, 8>::new(needle, needle_bitmask, &opts));
+                }
+                bucket_size_1024.as_mut().unwrap().add_haystack(&mut matches, haystack, i);
+            },
+            // TODO: implement greedy fallback strategy
             _ => continue,
         };
-
-        // Perform a fast path with bitmasking if there are no typos or 1 typo
-        // This makes the algorithm 6x faster in the case of no matches
-        // in the haystack
-        let prefilter = !opts.prefilter
-            || match opts.max_typos {
-                // Use memchr for prefiltering when the haystack is too long
-                Some(0) if bucket_idx >= 5 => memchr::prefilter(needle, *haystack),
-                Some(1) if bucket_idx >= 4 => memchr::prefilter_with_typo(needle, *haystack),
-
-                // Othewrise, use bitmasking
-                Some(0) => {
-                    needle_bitmask & string_to_bitmask_simd(haystack.as_bytes()) == needle_bitmask
-                }
-                // TODO: skip this when typos > 2?
-                Some(max) => {
-                    (needle_bitmask & string_to_bitmask_simd(haystack.as_bytes()) ^ needle_bitmask)
-                        .count_ones()
-                        <= max as u32
-                }
-                _ => true,
-            };
-        if !prefilter {
-            continue;
-        }
-
-        let bucket = &mut buckets[bucket_idx];
-        bucket.add_haystack(haystack, i);
-
-        if bucket.is_full() {
-            bucket.process(&mut matches, needle, opts.min_score, opts.max_typos);
-        }
     }
 
-    // Iterate over the bucket with remaining elements
-    for (bucket_idx, bucket) in buckets.iter_mut().enumerate() {
-        let max_typos = match opts.max_typos {
-            // if we used memchr, we can be certain there's no typos
-            Some(0) if bucket_idx >= 5 => None,
-            Some(1) if bucket_idx >= 4 => None,
-
-            _ => opts.max_typos,
-        };
-
-        bucket.process(&mut matches, needle, opts.min_score, max_typos);
-    }
+    // Run processing on remaining haystacks in the buckets
+    if let Some(ref mut bucket) = bucket_size_4 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_8 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_12 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_16 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_20 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_24 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_32 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_48 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_64 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_96 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_128 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_160 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_192 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_224 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_256 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_384 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_512 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_768 { bucket.finalize(&mut matches); }
+    if let Some(ref mut bucket) = bucket_size_1024 { bucket.finalize(&mut matches); }
 
     // Sorting
     if opts.stable_sort {
