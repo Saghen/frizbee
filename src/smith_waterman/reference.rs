@@ -165,7 +165,6 @@ pub fn typos_from_score_matrix<const W: usize>(score_matrix: Vec<[u16; W]>) -> u
     if col_idx == 0 && score == 0 {
         typo_count += 1;
     }
-    // }
 
     typo_count
 }

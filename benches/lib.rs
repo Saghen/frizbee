@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use frizbee::{incremental::IncrementalMatcher, *};
+use frizbee::{incremental::IncrementalMatcher, one_shot::*, *};
 use generate::generate_haystack;
 use nucleo_matcher::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},

@@ -1,7 +1,10 @@
 use std::simd::{cmp::SimdOrd, Simd};
 
 use crate::{
-    simd::{smith_waterman_inner, HaystackChar, NeedleChar, SimdNum},
+    smith_waterman::simd::{
+        smith_waterman_inner, typos_from_score_matrix, HaystackChar, NeedleChar, SimdMask, SimdNum,
+        SimdVec,
+    },
     Match,
 };
 
@@ -30,8 +33,8 @@ impl<N: SimdNum<L>, const W: usize, const L: usize> IncrementalBucket<N, W, L>
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: crate::simd::SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: crate::simd::SimdMask<N, L>,
+    std::simd::Simd<N, L>: SimdVec<N, L>,
+    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
     pub fn new(haystacks: &[&str; L], idxs: [usize; L], length: usize) -> Self {
         Self {
@@ -48,8 +51,8 @@ impl<N: SimdNum<L>, const W: usize, const L: usize> IncrementalBucketTrait
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: crate::simd::SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: crate::simd::SimdMask<N, L>,
+    std::simd::Simd<N, L>: SimdVec<N, L>,
+    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
     #[inline]
     fn process(
@@ -65,23 +68,16 @@ where
             .map(|&x| NeedleChar::new(x.into()))
             .collect::<Box<[_]>>();
 
-        // TODO: only perform one of truncate and extend based on chars_added - chars_removed
-
-        // if new_needle_chars.len() > prefix_to_keep {
-        //     self.score_matrix.extend(std::iter::repeat_n(
-        //         [N::ZERO_VEC; W],
-        //         new_needle_chars.len() - prefix_to_keep,
-        //     ));
-        // } else if new_needle_chars.len() < prefix_to_keep {
-        //     self.score_matrix
-        //         .truncate(prefix_to_keep + new_needle_chars.len());
-        // }
-        self.score_matrix.truncate(prefix_to_keep);
-
-        self.score_matrix.extend(std::iter::repeat_n(
-            [N::ZERO_VEC; W],
-            new_needle_chars.len(),
-        ));
+        // Adjust score matrix to the new size
+        if new_needle_chars.len() > prefix_to_keep {
+            self.score_matrix.extend(std::iter::repeat_n(
+                [N::ZERO_VEC; W],
+                new_needle_chars.len() - prefix_to_keep,
+            ));
+        } else if new_needle_chars.len() < prefix_to_keep {
+            self.score_matrix
+                .truncate(prefix_to_keep + new_needle_chars.len());
+        }
 
         for (i, &needle_char) in new_needle_chars.iter().enumerate() {
             let needle_idx = i + prefix_to_keep;
@@ -121,6 +117,7 @@ where
         });
 
         // TODO: typos
+        let typos = max_typos.map(|_| typos_from_score_matrix::<N, W, L>(&self.score_matrix));
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
@@ -128,6 +125,13 @@ where
             if score < min_score {
                 continue;
             }
+
+            if let Some(max_typos) = max_typos {
+                if typos.is_some_and(|typos| typos[idx] > max_typos) {
+                    continue;
+                }
+            }
+
             let score_idx = self.idxs[idx];
             matches.push(Match {
                 index_in_haystack: score_idx,
