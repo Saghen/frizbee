@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::simd::SimdNum;
+use crate::smith_waterman::simd::{SimdMask, SimdNum, SimdVec};
 
 use super::bucket::{IncrementalBucket, IncrementalBucketTrait};
 
@@ -11,7 +11,6 @@ where
     length: usize,
     haystacks: [&'a str; L],
     idxs: [usize; L],
-    buckets: Vec<Box<dyn IncrementalBucketTrait>>,
     _phantom: PhantomData<N>,
 }
 
@@ -20,15 +19,14 @@ impl<'a, N: SimdNum<L> + 'static, const W: usize, const L: usize>
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: crate::simd::SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: crate::simd::SimdMask<N, L>,
+    std::simd::Simd<N, L>: SimdVec<N, L>,
+    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
     pub fn new() -> Self {
         Self {
             length: 0,
             haystacks: [""; L],
             idxs: [0; L],
-            buckets: vec![],
             _phantom: PhantomData,
         }
     }

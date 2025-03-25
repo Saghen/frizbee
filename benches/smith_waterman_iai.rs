@@ -1,4 +1,4 @@
-use frizbee::simd::smith_waterman;
+use frizbee::smith_waterman::simd::smith_waterman;
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use std::hint::black_box;
 
