@@ -22,7 +22,7 @@ where
     const ZERO: Self;
     const ZERO_VEC: Simd<Self, L>;
 
-    // Delmiters
+    // Delimiters
     const SPACE_DELIMITER: Simd<Self, L>;
     const SLASH_DELIMITER: Simd<Self, L>;
     const DOT_DELIMITER: Simd<Self, L>;
@@ -206,6 +206,22 @@ where
     }
 }
 
+impl<N, const L: usize> Default for HaystackChar<N, L>
+where
+    N: SimdNum<L>,
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+    Simd<N, L>: SimdVec<N, L>,
+    Mask<N::Mask, L>: SimdMask<N, L>,
+{
+    fn default() -> Self {
+        Self {
+            lowercase: N::ZERO_VEC,
+            is_capital_mask: Mask::splat(false),
+            is_delimiter_mask: Mask::splat(false),
+        }
+    }
+}
+
 #[inline(always)]
 pub(crate) fn smith_waterman_inner<N, const L: usize>(
     width: usize,
@@ -305,7 +321,6 @@ where
 {
     let needle_str = needle;
     let needle = needle.as_bytes();
-    let width = haystacks.map(|x| x.len()).into_iter().max().unwrap();
 
     let haystack: [HaystackChar<N, L>; W] =
         std::array::from_fn(|i| HaystackChar::from_haystacks(haystacks, i));
@@ -323,13 +338,7 @@ where
             (Some(a[needle_idx - 1].as_slice()), &mut b[0])
         };
 
-        smith_waterman_inner(
-            width,
-            needle_char,
-            &haystack,
-            prev_score_col,
-            curr_score_col,
-        );
+        smith_waterman_inner(W, needle_char, &haystack, prev_score_col, curr_score_col);
     }
 
     let exact_matches = std::array::from_fn(|i| haystacks[i] == needle_str);
