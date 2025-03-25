@@ -45,11 +45,6 @@ where
         idx: usize,
         buckets: &mut Vec<Box<dyn IncrementalBucketTrait>>,
     ) {
-        assert!(haystack.len() <= W);
-        if self.length == L {
-            return;
-        }
-
         self.haystacks[self.length] = haystack;
         self.idxs[self.length] = idx;
         self.length += 1;
