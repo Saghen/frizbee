@@ -48,7 +48,7 @@ pub fn generate_haystack(needle: &str, options: HaystackGenerationOptions) -> Ve
             };
 
             // Generate a length from the normal distribution
-            let length = normal_dist.sample(&mut rng).round().abs() as usize;
+            let length = normal_dist.sample(&mut rng).round().abs().max(1.) as usize;
 
             match match_type {
                 // Generate a random alphanumeric string of the desired length

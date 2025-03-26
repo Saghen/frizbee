@@ -165,7 +165,6 @@ pub fn typos_from_score_matrix<const W: usize>(score_matrix: Vec<[u16; W]>) -> u
     if col_idx == 0 && score == 0 {
         typo_count += 1;
     }
-    // }
 
     typo_count
 }
@@ -256,7 +255,8 @@ mod tests {
     fn test_score_capital_bonus() {
         assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(get_score("D", "forDist"), CHAR_SCORE);
+        assert_eq!(get_score("D", "forDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
+        assert_eq!(get_score("D", "foRDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
     }
 
     #[test]

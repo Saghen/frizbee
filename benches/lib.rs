@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use frizbee::*;
+use frizbee::{incremental::IncrementalMatcher, one_shot::*, *};
 use generate::generate_haystack;
 use nucleo_matcher::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
@@ -21,7 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             match_percentage: 0.05,
             median_length: 16,
             std_dev_length: 4,
-            num_samples: 1000,
+            num_samples: 10000,
         },
     );
     let haystack_ref = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
@@ -33,6 +33,12 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&haystack_ref),
                 Options::default(),
             )
+        })
+    });
+    c.bench_function("frizbee_incremental", |b| {
+        b.iter(|| {
+            IncrementalMatcher::new(black_box(&haystack_ref))
+                .match_needle(black_box(needle), Options::default())
         })
     });
     c.bench_function("frizbee_0_typos", |b| {
@@ -75,12 +81,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         let mut matcher = Matcher::new(Config::DEFAULT);
         let atom = Atom::new(
             needle,
-            CaseMatching::Respect,
+            CaseMatching::Ignore,
             Normalization::Never,
             AtomKind::Fuzzy,
             false,
         );
-        b.iter(|| atom.match_list(haystack.iter(), &mut matcher))
+        b.iter(|| atom.match_list(black_box(haystack.iter()), &mut matcher))
     });
 }
 
