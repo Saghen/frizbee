@@ -192,8 +192,13 @@ mod tests {
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
         assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_score_no_delimiter_for_delimiter_chars() {
         assert_eq!(get_score("-", "a-bc"), CHAR_SCORE);
-        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE);
+        assert!(get_score("a_b", "a_bb") > get_score("a_b", "a__b"));
     }
 
     #[test]

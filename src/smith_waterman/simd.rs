@@ -267,8 +267,10 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
                     let capitalization_bonus =
                         capitalization_bonus_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
 
-                    let delimiter_bonus_mask: Mask<N::Mask, L> =
-                        prev_haystack_char.is_delimiter_mask & delimiter_bonus_enabled_mask;
+                    let delimiter_bonus_mask: Mask<N::Mask, L> = prev_haystack_char
+                        .is_delimiter_mask
+                        & delimiter_bonus_enabled_mask
+                        & !haystack_char.is_delimiter_mask;
                     let delimiter_bonus =
                         delimiter_bonus_mask.select(N::DELIMITER_BONUS, N::ZERO_VEC);
 
@@ -500,8 +502,13 @@ mod tests {
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
         assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+    }
+
+    #[test]
+    fn test_score_no_delimiter_for_delimiter_chars() {
         assert_eq!(get_score("-", "a-bc"), CHAR_SCORE);
-        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE + DELIMITER_BONUS);
+        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE);
+        assert!(get_score("a_b", "a_bb") > get_score("a_b", "a__b"));
     }
 
     #[test]
