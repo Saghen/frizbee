@@ -1,5 +1,8 @@
 #![feature(portable_simd)]
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 pub mod r#const;
 pub mod incremental;
 pub mod one_shot;
@@ -10,6 +13,7 @@ pub use incremental::IncrementalMatcher;
 pub use one_shot::match_list;
 
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Match {
     /** Index of the match in the original list of haystacks */
     pub index_in_haystack: usize,
@@ -19,6 +23,7 @@ pub struct Match {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Options {
     /// May perform prefiltering, depending on haystack length and max number of typos,
     /// which drastically improves performance when most of the haystack does not match

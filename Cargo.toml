@@ -25,3 +25,8 @@ harness = false
 
 [dependencies]
 memchr = "2.7.4"
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[features]
+default = []
+serde = ["dep:serde"]

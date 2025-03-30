@@ -223,6 +223,7 @@ dependencies = [
  "nucleo-matcher",
  "rand",
  "rand_distr",
+ "serde",
 ]
 
 [[package]]
