@@ -6,6 +6,9 @@ pub mod one_shot;
 pub mod prefilter;
 pub mod smith_waterman;
 
+pub use incremental::IncrementalMatcher;
+pub use one_shot::match_list;
+
 #[derive(Debug, Clone, Default)]
 pub struct Match {
     /** Index of the match in the original list of haystacks */
