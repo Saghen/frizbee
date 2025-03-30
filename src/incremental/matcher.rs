@@ -91,7 +91,8 @@ impl IncrementalMatcher {
         }
     }
 
-    pub fn match_needle(&mut self, needle: &str, opts: Options) -> Vec<Match> {
+    pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, opts: Options) -> Vec<Match> {
+        let needle = needle.as_ref();
         if needle.is_empty() {
             todo!();
         }

@@ -8,7 +8,11 @@ use std::cmp::Reverse;
 /// You should call this function with as many targets as you have available as it will
 /// automatically chunk the targets based on string length to avoid unnecessary computation
 /// due to SIMD
-pub fn match_list<S: AsRef<str>>(needle: S, haystacks: &[S], opts: Options) -> Vec<Match> {
+pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
+    needle: S1,
+    haystacks: &[S2],
+    opts: Options,
+) -> Vec<Match> {
     let needle = needle.as_ref();
     if needle.is_empty() {
         return haystacks
