@@ -10,7 +10,7 @@ pub struct IncrementalMatcher {
 }
 
 impl IncrementalMatcher {
-    pub fn new(haystacks: &Vec<&str>) -> Self {
+    pub fn new<S: AsRef<str>>(haystacks: &[S]) -> Self {
         // group haystacks into buckets by length
 
         // TODO: prefiltering? If yes, then haystacks can't be put into buckets yet
@@ -38,6 +38,7 @@ impl IncrementalMatcher {
         let mut collection_size_1024 = IncrementalBucketCollection::<'_, u16, 1024, 8>::new();
 
         for (i, haystack) in haystacks.iter().enumerate() {
+            let haystack = haystack.as_ref();
             match haystack.len() {
                 0..=4 => collection_size_4.add_haystack(haystack, i, &mut buckets),
                 5..=8 => collection_size_8.add_haystack(haystack, i, &mut buckets),
