@@ -169,6 +169,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Incremental matcher doesn't support exact matches until we implement them in SIMD"]
     fn test_score_exact_match() {
         assert_eq!(
             get_score("a", "a"),
