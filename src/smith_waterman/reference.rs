@@ -35,7 +35,8 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16
             let capital_mask = cased_haystack_simd.is_ascii_uppercase();
             let haystack_simd = cased_haystack_simd.to_ascii_lowercase();
 
-            let is_delimiter_mask = [b' ', b'/', b',', b'_', b'-', b':'].contains(&haystack_simd);
+            let is_delimiter_mask =
+                [b' ', b'/', b'.', b',', b'_', b'-', b':'].contains(&haystack_simd);
             let matched_casing_mask = needle_cased_mask == capital_mask;
 
             // Give a bonus for prefix matches
