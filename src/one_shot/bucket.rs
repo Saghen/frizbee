@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::prefilter::bitmask::string_to_bitmask_simd;
 use crate::prefilter::memchr;
 use crate::smith_waterman::simd::{
-    smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
+    char_indices_from_scores, smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
 };
 use crate::{Match, Options};
 
@@ -31,6 +31,7 @@ where
     min_score: u16,
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
+    matched_indices: bool,
     _phantom: PhantomData<N>,
 }
 
@@ -57,6 +58,7 @@ where
                 (true, Some(1)) if L >= 20 => PrefilterMethod::Memchr,
                 (true, _) => PrefilterMethod::Bitmask,
             },
+            matched_indices: opts.matched_indices,
             _phantom: PhantomData,
         }
     }
@@ -116,6 +118,10 @@ where
             .max_typos
             .map(|_| typos_from_score_matrix::<N, W, L>(&score_matrix));
 
+        let mut matched_indices = self
+            .matched_indices
+            .then(|| char_indices_from_scores(&score_matrix).into_iter());
+
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
             let score = scores[idx];
@@ -123,6 +129,7 @@ where
                 continue;
             }
 
+            // Memchr guarantees the number of typos is <= max_typos so no need to check
             if !matches!(self.prefilter, PrefilterMethod::Memchr) {
                 if let Some(max_typos) = self.max_typos {
                     if typos.is_some_and(|typos| typos[idx] > max_typos) {
@@ -131,12 +138,14 @@ where
                 }
             }
 
+            let indices = matched_indices.as_mut().and_then(|iter| iter.next());
+
             let score_idx = self.idxs[idx];
             matches.push(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
                 exact: exact_matches[idx],
-                indices: None,
+                indices,
             });
         }
 
