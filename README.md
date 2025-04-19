@@ -58,3 +58,15 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
 - `DELIMITER_BONUS`: Bonus for matching _after_ a delimiter character (e.g. "hw" on "hello_world", will give a bonus on "w")
 - `MATCHING_CASE_BONUS`: Bonus for matching the case of the needle (e.g. "WorLd" on "WoRld" will receive a bonus on "W", "o", "d")
 - `EXACT_MATCH_BONUS`: Bonus for matching the exact needle (e.g. "foo" on "foo" will receive the bonus)
+
+## Ideas
+
+- [x] Incremental matching
+  - [ ] Prefiltering
+  - [ ] Exact match bonus
+- [ ] Runtime instruction selection (512-bit and 256-bit SIMD)
+- [ ] Calculate alignment directions during matrix building
+  - It should be possible to calculate the backtrace direction for the alignment phase while we're building the matrix, which could speed up typo calculation
+- [ ] Prefix matching
+- [ ] Drop u8 based scoring and double scoring to support longer fuzzy matches
+  - Currently, alignment can be lost on longer matches causing us to mark them as having typos

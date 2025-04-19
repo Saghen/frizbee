@@ -111,6 +111,9 @@ where
             return;
         }
 
+        // TODO: dynamically pick L (simd width) based on length
+        // and supported instructions (avx2, avx512, ...)
+
         let (scores, score_matrix, exact_matches) =
             smith_waterman::<N, W, L>(self.needle, &self.haystacks);
 
