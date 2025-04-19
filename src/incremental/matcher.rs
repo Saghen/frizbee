@@ -17,12 +17,12 @@ impl IncrementalMatcher {
 
         let mut buckets: Vec<Box<dyn IncrementalBucketTrait>> = vec![];
 
-        let mut collection_size_4 = IncrementalBucketCollection::<'_, u8, 4, 16>::new();
-        let mut collection_size_8 = IncrementalBucketCollection::<'_, u8, 8, 16>::new();
-        let mut collection_size_12 = IncrementalBucketCollection::<'_, u8, 12, 16>::new();
-        let mut collection_size_16 = IncrementalBucketCollection::<'_, u8, 16, 16>::new();
-        let mut collection_size_20 = IncrementalBucketCollection::<'_, u8, 20, 16>::new();
-        let mut collection_size_24 = IncrementalBucketCollection::<'_, u8, 24, 16>::new();
+        let mut collection_size_4 = IncrementalBucketCollection::<'_, u16, 4, 8>::new();
+        let mut collection_size_8 = IncrementalBucketCollection::<'_, u16, 8, 8>::new();
+        let mut collection_size_12 = IncrementalBucketCollection::<'_, u16, 12, 8>::new();
+        let mut collection_size_16 = IncrementalBucketCollection::<'_, u16, 16, 8>::new();
+        let mut collection_size_20 = IncrementalBucketCollection::<'_, u16, 20, 8>::new();
+        let mut collection_size_24 = IncrementalBucketCollection::<'_, u16, 24, 8>::new();
         let mut collection_size_32 = IncrementalBucketCollection::<'_, u16, 32, 8>::new();
         let mut collection_size_48 = IncrementalBucketCollection::<'_, u16, 48, 8>::new();
         let mut collection_size_64 = IncrementalBucketCollection::<'_, u16, 64, 8>::new();

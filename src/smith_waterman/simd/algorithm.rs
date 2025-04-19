@@ -154,7 +154,7 @@ mod tests {
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<u8, 16, 1>(needle, &[haystack; 1]).0[0]
+        smith_waterman::<u16, 16, 1>(needle, &[haystack; 1]).0[0]
     }
 
     #[test]

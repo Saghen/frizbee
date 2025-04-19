@@ -1,11 +1,13 @@
 use memchr::{memchr, memchr2};
 
+#[inline(always)]
 pub fn prefilter(needle: &str, haystack: &str) -> bool {
     if needle.len() > haystack.len() {
         return false;
     }
     prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
 }
+#[inline(always)]
 pub fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
     if needle.len() > haystack.len() + 1 {
         return false;
@@ -15,6 +17,7 @@ pub fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
 
 /// Ripped directly from nucleo-matcher. It makes the algo much faster but disables resistance
 /// to typos
+#[inline(always)]
 fn prefilter_ascii(needle: &[u8], mut haystack: &[u8]) -> Option<()> {
     // If the first char is later than the haystack.len() - needle.len() + 1, then the
     // haystack is too short to contain the needle
@@ -28,6 +31,7 @@ fn prefilter_ascii(needle: &[u8], mut haystack: &[u8]) -> Option<()> {
 }
 
 /// Same as prefilter_ascii but allows for a single typo
+#[inline(always)]
 fn prefilter_ascii_with_typo(needle: &[u8], mut haystack: &[u8]) -> Option<()> {
     if needle.len() < 2 {
         return Some(());
