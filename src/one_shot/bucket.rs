@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::prefilter::bitmask::string_to_bitmask_simd;
 use crate::prefilter::memchr;
 use crate::smith_waterman::simd::{
@@ -14,64 +12,45 @@ enum PrefilterMethod {
     Bitmask,
 }
 
-pub(crate) trait Bucket<'a> {
-    fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize);
-    fn finalize(&mut self, matches: &mut Vec<Match>);
-}
-
-pub(crate) struct FixedWidthBucket<'a, N: SimdNum<L>, const W: usize, const L: usize>
-where
-    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-{
+pub(crate) struct FixedWidthBucket<'a, const W: usize> {
+    has_avx512: bool,
+    has_avx2: bool,
     length: usize,
     needle: &'a str,
     needle_bitmask: u64,
-    haystacks: [&'a str; L],
-    idxs: [usize; L],
+    haystacks: [&'a str; 32],
+    idxs: [usize; 32],
     min_score: u16,
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
     matched_indices: bool,
-    _phantom: PhantomData<N>,
 }
 
-impl<'a, N: SimdNum<L>, const W: usize, const L: usize> FixedWidthBucket<'a, N, W, L>
-where
-    N: SimdNum<L>,
-    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
-{
+impl<'a, const W: usize> FixedWidthBucket<'a, W> {
     pub fn new(needle: &'a str, needle_bitmask: u64, opts: &Options) -> Self {
         FixedWidthBucket {
+            has_avx512: is_x86_feature_detected!("avx512f")
+                && is_x86_feature_detected!("avx512bitalg"),
+            has_avx2: is_x86_feature_detected!("avx2"),
             length: 0,
             needle,
             needle_bitmask,
-            haystacks: [""; L],
-            idxs: [0; L],
+            haystacks: [""; 32],
+            idxs: [0; 32],
             min_score: opts.min_score,
             max_typos: opts.max_typos,
             prefilter: match (opts.prefilter, opts.max_typos) {
                 (false, _) => PrefilterMethod::None,
                 (_, None) => PrefilterMethod::None,
-                (true, Some(0)) if L >= 24 => PrefilterMethod::Memchr,
-                (true, Some(1)) if L >= 20 => PrefilterMethod::Memchr,
+                (true, Some(0)) if W >= 24 => PrefilterMethod::Memchr,
+                (true, Some(1)) if W >= 20 => PrefilterMethod::Memchr,
                 (true, _) => PrefilterMethod::Bitmask,
             },
             matched_indices: opts.matched_indices,
-            _phantom: PhantomData,
         }
     }
-}
 
-impl<'a, N: SimdNum<L>, const W: usize, const L: usize> Bucket<'a> for FixedWidthBucket<'a, N, W, L>
-where
-    N: SimdNum<L>,
-    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
-{
-    fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize) {
+    pub fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
                 (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
@@ -101,21 +80,51 @@ where
         self.idxs[self.length] = idx;
         self.length += 1;
 
-        if self.length == L {
-            self.finalize(matches);
+        match self.length {
+            32 if self.has_avx512 => unsafe { self.finalize_512(matches) },
+            16 if self.has_avx2 && !self.has_avx512 => unsafe { self.finalize_256(matches) },
+            8 if !self.has_avx2 && !self.has_avx512 => self.finalize_128(matches),
+            _ => {}
         }
     }
 
-    fn finalize(&mut self, matches: &mut Vec<Match>) {
+    pub fn finalize(&mut self, matches: &mut Vec<Match>) {
+        match self.length {
+            17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
+            9.. if self.has_avx2 => unsafe { self.finalize_256(matches) },
+            0.. => self.finalize_128(matches),
+        }
+    }
+
+    #[target_feature(enable = "avx512f", enable = "avx512bitalg")]
+    unsafe fn finalize_512(&mut self, matches: &mut Vec<Match>) {
+        self._finalize::<u16, 32>(matches);
+    }
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn finalize_256(&mut self, matches: &mut Vec<Match>) {
+        self._finalize::<u16, 16>(matches);
+    }
+
+    fn finalize_128(&mut self, matches: &mut Vec<Match>) {
+        self._finalize::<u16, 8>(matches);
+    }
+
+    #[inline(always)]
+    fn _finalize<N: SimdNum<L>, const L: usize>(&mut self, matches: &mut Vec<Match>)
+    where
+        std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+        std::simd::Simd<N, L>: SimdVec<N, L>,
+        std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
+    {
         if self.length == 0 {
             return;
         }
 
-        // TODO: dynamically pick L (simd width) based on length
-        // and supported instructions (avx2, avx512, ...)
-
-        let (scores, score_matrix, exact_matches) =
-            smith_waterman::<N, W, L>(self.needle, &self.haystacks);
+        let (scores, score_matrix, exact_matches) = smith_waterman::<N, W, L>(
+            self.needle,
+            &self.haystacks.get(0..L).unwrap().try_into().unwrap(),
+        );
 
         let typos = self
             .max_typos
