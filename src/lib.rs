@@ -12,7 +12,6 @@ pub mod smith_waterman;
 
 pub use incremental::IncrementalMatcher;
 pub use one_shot::match_list;
-// pub use smith_waterman::simd::algorithm::{smith_waterman_fixed, smith_waterman_fixed_inner};
 
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
