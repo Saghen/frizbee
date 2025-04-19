@@ -56,6 +56,7 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
 - `GAP_EXTEND_PENALTY`: Penalty for extending a gap (deletion/insertion)
 - `PREFIX_BONUS`: Bonus for matching the first character of the haystack
 - `DELIMITER_BONUS`: Bonus for matching _after_ a delimiter character (e.g. "hw" on "hello_world", will give a bonus on "w")
+- `CAPITALIZATION_BONUS`: Bonus for matching a capital letter after a lowercase letter (e.g. "b" on "fooBar" will receive a bonus on "B")
 - `MATCHING_CASE_BONUS`: Bonus for matching the case of the needle (e.g. "WorLd" on "WoRld" will receive a bonus on "W", "o", "d")
 - `EXACT_MATCH_BONUS`: Bonus for matching the exact needle (e.g. "foo" on "foo" will receive the bonus)
 

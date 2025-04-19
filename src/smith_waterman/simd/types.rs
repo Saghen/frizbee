@@ -118,7 +118,6 @@ macro_rules! simd_num_impl {
         )+
     };
 }
-simd_num_impl!(u8, 1, 2, 4, 8, 16, 32, 64);
 simd_num_impl!(u16, 1, 2, 4, 8, 16, 32);
 
 #[inline(always)]

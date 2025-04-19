@@ -6,7 +6,8 @@ version = "0.3.0"
 edition = "2021"
 
 [profile.release]
-lto = true
+lto = "fat"
+opt-level = 3
 
 [dev-dependencies]
 criterion = "0.5"

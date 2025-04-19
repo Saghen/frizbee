@@ -12,6 +12,7 @@ pub fn string_to_bitmask(s: &[u8]) -> u64 {
 }
 
 const LANES: usize = 8;
+#[inline(always)]
 pub fn string_to_bitmask_simd(s: &[u8]) -> u64 {
     let mut mask: u64 = 0;
 
