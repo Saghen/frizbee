@@ -1,4 +1,4 @@
-use super::bucket::{Bucket, FixedWidthBucket};
+use super::bucket::FixedWidthBucket;
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::{Match, Options};
 use std::cmp::Reverse;
@@ -29,28 +29,27 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
 
     let needle_bitmask = string_to_bitmask(needle.as_bytes());
 
-    // Lazy bucket initialization - buckets are created only when needed
-    let mut bucket_size_4 = FixedWidthBucket::<u8, 4, 16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_8 = FixedWidthBucket::<u8, 8, 16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_12 = FixedWidthBucket::<u8, 12, 16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_16 = FixedWidthBucket::<u8, 16, 16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_20 = FixedWidthBucket::<u8, 20, 16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_24 = FixedWidthBucket::<u8, 24, 16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_32 = FixedWidthBucket::<u16, 32, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_48 = FixedWidthBucket::<u16, 48, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_64 = FixedWidthBucket::<u16, 64, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_96 = FixedWidthBucket::<u16, 96, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_128 = FixedWidthBucket::<u16, 128, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_160 = FixedWidthBucket::<u16, 160, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_192 = FixedWidthBucket::<u16, 192, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_224 = FixedWidthBucket::<u16, 224, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_256 = FixedWidthBucket::<u16, 256, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_384 = FixedWidthBucket::<u16, 384, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_512 = FixedWidthBucket::<u16, 512, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_768 = FixedWidthBucket::<u16, 768, 8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_1024 = FixedWidthBucket::<u16, 1024, 8>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_4 = FixedWidthBucket::<4>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_8 = FixedWidthBucket::<8>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_12 = FixedWidthBucket::<12>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_16 = FixedWidthBucket::<16>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_20 = FixedWidthBucket::<20>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_24 = FixedWidthBucket::<24>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_32 = FixedWidthBucket::<32>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_48 = FixedWidthBucket::<48>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_64 = FixedWidthBucket::<64>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_96 = FixedWidthBucket::<96>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_128 = FixedWidthBucket::<128>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_160 = FixedWidthBucket::<160>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_192 = FixedWidthBucket::<192>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_224 = FixedWidthBucket::<224>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_256 = FixedWidthBucket::<256>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_384 = FixedWidthBucket::<384>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_512 = FixedWidthBucket::<512>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_768 = FixedWidthBucket::<768>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_1024 = FixedWidthBucket::<1024>::new(needle, needle_bitmask, &opts);
 
-    let mut matches = if opts.max_typos == None {
+    let mut matches = if opts.max_typos.is_none() {
         Vec::with_capacity(haystacks.len())
     } else {
         vec![]
@@ -185,3 +184,4 @@ mod tests {
         }
     }
 }
+
