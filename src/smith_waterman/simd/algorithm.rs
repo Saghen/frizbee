@@ -47,7 +47,7 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
 
                     // ignore capitalization on the prefix
                     let capitalization_bonus_mask: Mask<N::Mask, L> =
-                        haystack_char.is_capital_mask & prev_haystack_char.is_capital_mask.not();
+                        haystack_char.is_capital_mask & prev_haystack_char.is_lower_mask;
                     let capitalization_bonus =
                         capitalization_bonus_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
 
@@ -218,6 +218,7 @@ mod tests {
         assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("D", "forDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
         assert_eq!(get_score("D", "foRDist"), CHAR_SCORE);
+        assert_eq!(get_score("D", "FOR_DIST"), CHAR_SCORE + DELIMITER_BONUS);
     }
 
     #[test]

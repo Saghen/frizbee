@@ -33,6 +33,8 @@ where
     // Capitalization
     const CAPITAL_START: Simd<Self, L>;
     const CAPITAL_END: Simd<Self, L>;
+    const LOWER_START: Simd<Self, L>;
+    const LOWER_END: Simd<Self, L>;
     const TO_LOWERCASE_MASK: Simd<Self, L>;
 
     // Scoring Params
@@ -93,6 +95,8 @@ macro_rules! simd_num_impl {
 
                 const CAPITAL_START: Simd<Self, $lanes> = Simd::from_array([b'A' as $type; $lanes]);
                 const CAPITAL_END: Simd<Self, $lanes> = Simd::from_array([b'Z' as $type; $lanes]);
+                const LOWER_START: Simd<Self, $lanes> = Simd::from_array([b'a' as $type; $lanes]);
+                const LOWER_END: Simd<Self, $lanes> = Simd::from_array([b'z' as $type; $lanes]);
                 const TO_LOWERCASE_MASK: Simd<Self, $lanes> = Simd::from_array([0x20; $lanes]);
 
                 const CAPITALIZATION_BONUS: Simd<Self, $lanes> = Simd::from_array([CAPITALIZATION_BONUS as $type; $lanes]);
@@ -120,7 +124,7 @@ simd_num_impl!(u16, 1, 2, 4, 8, 16, 32);
 #[inline(always)]
 pub(crate) fn simd_to_lowercase_with_mask<N, const L: usize>(
     data: Simd<N, L>,
-) -> (Mask<N::Mask, L>, Simd<N, L>)
+) -> (Mask<N::Mask, L>, Mask<N::Mask, L>, Simd<N, L>)
 where
     N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
@@ -129,8 +133,9 @@ where
 {
     let is_capital_mask: Mask<N::Mask, L> =
         data.simd_ge(N::CAPITAL_START) & data.simd_le(N::CAPITAL_END);
+    let is_lower_mask: Mask<N::Mask, L> = data.simd_ge(N::LOWER_START) & data.simd_le(N::LOWER_END);
     let lowercase = data | is_capital_mask.select(N::TO_LOWERCASE_MASK, N::ZERO_VEC);
-    (is_capital_mask, lowercase)
+    (is_capital_mask, is_lower_mask, lowercase)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -151,7 +156,8 @@ where
 {
     #[inline(always)]
     pub(crate) fn new(char: N) -> Self {
-        let (is_capital_mask, lowercase) = simd_to_lowercase_with_mask::<N, L>(Simd::splat(char));
+        let (is_capital_mask, _, lowercase) =
+            simd_to_lowercase_with_mask::<N, L>(Simd::splat(char));
         Self {
             lowercase,
             is_capital_mask,
@@ -166,6 +172,7 @@ where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
     pub(crate) lowercase: Simd<N, L>,
+    pub(crate) is_lower_mask: Mask<N::Mask, L>,
     pub(crate) is_capital_mask: Mask<N::Mask, L>,
     pub(crate) is_delimiter_mask: Mask<N::Mask, L>,
 }
@@ -178,7 +185,8 @@ where
 {
     #[inline(always)]
     pub(crate) fn new(chars: Simd<N, L>) -> Self {
-        let (is_capital_mask, lowercase) = simd_to_lowercase_with_mask::<N, L>(chars);
+        let (is_capital_mask, is_lower_mask, lowercase) =
+            simd_to_lowercase_with_mask::<N, L>(chars);
         let is_delimiter_mask: Mask<N::Mask, L> = N::SPACE_DELIMITER.simd_eq(lowercase)
             | N::SLASH_DELIMITER.simd_eq(lowercase)
             | N::DOT_DELIMITER.simd_eq(lowercase)
@@ -188,6 +196,7 @@ where
             | N::SPACE_DELIMITER.simd_eq(lowercase);
         Self {
             lowercase,
+            is_lower_mask,
             is_capital_mask,
             is_delimiter_mask,
         }
@@ -214,6 +223,7 @@ where
     fn default() -> Self {
         Self {
             lowercase: N::ZERO_VEC,
+            is_lower_mask: Mask::splat(false),
             is_capital_mask: Mask::splat(false),
             is_delimiter_mask: Mask::splat(false),
         }
