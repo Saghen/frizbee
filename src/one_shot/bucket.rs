@@ -90,8 +90,8 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
 
     pub fn finalize(&mut self, matches: &mut Vec<Match>) {
         match self.length {
-            17..=32 if self.has_avx512 => unsafe { self.finalize_512(matches) },
-            9..=16 if self.has_avx2 => unsafe { self.finalize_256(matches) },
+            17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
+            9.. if self.has_avx2 => unsafe { self.finalize_256(matches) },
             0.. => self.finalize_128(matches),
         }
     }
