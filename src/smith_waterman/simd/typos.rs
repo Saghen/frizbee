@@ -6,6 +6,7 @@ use super::{SimdMask, SimdNum, SimdVec};
 #[inline]
 pub fn typos_from_score_matrix<N, const W: usize, const L: usize>(
     score_matrix: &[[Simd<N, L>; W]],
+    max_typos: u16,
 ) -> [u16; L]
 where
     N: SimdNum<L>,
@@ -34,6 +35,10 @@ where
 
         // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
         while col_idx > 0 {
+            if typo_count[idx] > max_typos {
+                break;
+            }
+
             // Must be moving left
             if row_idx == 0 {
                 typo_count[idx] += 1;
@@ -82,7 +87,10 @@ mod tests {
     use crate::smith_waterman::simd::smith_waterman;
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
-        typos_from_score_matrix(&smith_waterman::<u16, 4, 1>(needle, &[haystack; 1], None).1)[0]
+        typos_from_score_matrix(
+            &smith_waterman::<u16, 4, 1>(needle, &[haystack; 1], Some(1)).1,
+            100,
+        )[0]
     }
 
     #[test]

@@ -129,7 +129,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
 
         let typos = self
             .max_typos
-            .map(|_| typos_from_score_matrix::<N, W, L>(&score_matrix));
+            .map(|max_typos| typos_from_score_matrix::<N, W, L>(&score_matrix, max_typos));
 
         let mut matched_indices = self
             .matched_indices
