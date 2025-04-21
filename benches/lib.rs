@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use frizbee::{incremental::IncrementalMatcher, one_shot::*, *};
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use generate::generate_haystack;
 use nucleo_matcher::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
@@ -77,6 +78,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             )
         })
     });
+
     c.bench_function("nucleo", |b| {
         let mut matcher = Matcher::new(Config::DEFAULT);
         let atom = Atom::new(
@@ -87,6 +89,24 @@ fn criterion_benchmark(c: &mut Criterion) {
             false,
         );
         b.iter(|| atom.match_list(black_box(haystack.iter()), &mut matcher))
+    });
+
+    c.bench_function("skim", |b| {
+        let matcher = SkimMatcherV2::default();
+        let haystack_str = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
+
+        b.iter(|| {
+            let mut matches = vec![];
+            for item in black_box(haystack_str.iter()) {
+                let score = matcher.fuzzy_match(needle, item);
+                let _ = black_box(score);
+                if let Some(score) = score {
+                    matches.push((score, item.to_string()));
+                }
+            }
+            matches.sort_by_key(|(score, _)| *score);
+            matches
+        })
     });
 }
 
