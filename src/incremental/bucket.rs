@@ -117,7 +117,8 @@ where
         });
 
         // TODO: typos
-        let typos = max_typos.map(|_| typos_from_score_matrix::<N, W, L>(&self.score_matrix));
+        let typos = max_typos
+            .map(|max_typos| typos_from_score_matrix::<N, W, L>(&self.score_matrix, max_typos));
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
