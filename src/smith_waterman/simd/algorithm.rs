@@ -208,6 +208,7 @@ mod tests {
 
     #[test]
     fn test_score_delimiter() {
+        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE);
         assert_eq!(get_score("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
