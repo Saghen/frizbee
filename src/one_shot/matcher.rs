@@ -1,5 +1,6 @@
 use super::bucket::FixedWidthBucket;
 use crate::prefilter::bitmask::string_to_bitmask;
+use crate::smith_waterman::greedy::match_greedy;
 use crate::{Match, Options};
 use std::cmp::Reverse;
 
@@ -62,10 +63,27 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
         .map(|max| needle.len() - (max as usize))
         .unwrap_or(0);
 
+    // limit the maximum size of the matrix to 64kB since smith waterman scales O(nm)
+    // where n is the length of the needle and m is the length of the haystack
+    let max_matrix_bytes = 64 * 1024;
+    let max_haystack_len = max_matrix_bytes / needle.len() / 2; // divide by 2 since we use u16
+
     for (i, haystack) in haystacks.iter().enumerate() {
         let haystack = haystack.as_ref();
         if haystack.len() < min_haystack_len {
             continue;
+        }
+        // fallback to greedy matching
+        if haystack.len() > max_haystack_len {
+            if let Some((score, indices)) = match_greedy(needle, haystack) {
+                matches.push(Match {
+                    index_in_haystack: i,
+                    score,
+                    exact: false,
+                    indices: opts.matched_indices.then_some(indices),
+                });
+                continue;
+            }
         }
 
         // Pick the bucket to insert into based on the length of the haystack
@@ -89,8 +107,19 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
             385..=512 => bucket_size_512.add_haystack(&mut matches, haystack, i),
             513..=768 => bucket_size_768.add_haystack(&mut matches, haystack, i),
             769..=1024 => bucket_size_1024.add_haystack(&mut matches, haystack, i),
-            // TODO: implement greedy fallback strategy
-            _ => continue,
+
+            // fallback to greedy matching
+            _ => {
+                if let Some((score, indices)) = match_greedy(needle, haystack) {
+                    matches.push(Match {
+                        index_in_haystack: i,
+                        score,
+                        exact: false,
+                        indices: opts.matched_indices.then_some(indices),
+                    });
+                    continue;
+                }
+            }
         };
     }
 

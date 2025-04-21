@@ -46,7 +46,9 @@ The core of the algorithm is Smith-Waterman with affine gaps and inter-sequence 
 - Supports insertion, deletion and substitution
 - Does not support transposition (i.e. swapping two adjacent characters)
 
-Due to the inter-sequence parallelism, the algorithm performs best when all the haystacks are the same length (i.e. length 8) for the given SIMD width (i.e. 16 for 256 bit SIMD with u16 scores). The `match_list` function handles this by grouping the haystacks by length into "buckets" of various sizes (`4`, `8`, `12`, ...). Any haystack with length larger than the largest bucket will be discarded, for now. 
+Due to the inter-sequence parallelism, the algorithm performs best when all the haystacks are the same length (i.e. length 8) for the given SIMD width (i.e. 16 for 256 bit SIMD with u16 scores). The `match_list` function handles this by grouping the haystacks by length into "buckets" of various sizes (`4`, `8`, `12`, ...).
+
+Any haystack with length larger than the largest bucket, or that would lead to excessive memory usage (due to a long needle combined with a long haystack), will fallback to a greedy matcher. As a result, even with `max_typos = None`, it's possible for some items to not appear in the final list.
 
 The SIMD width will be chosen at runtime based on available instruction set extensions. Currently, only x86_64's AVX2 (256-bit) and AVX512 (512-bit) will be detected at runtime, falling back to 128-bit SIMD if neither is available.
 
@@ -66,7 +68,7 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
 
 - [x] Runtime instruction selection (512-bit and 256-bit SIMD)
 - [ ] Calculate alignment directions during matrix building
-  - It should be possible to calculate the backtrace direction for the alignment phase while we're building the matrix, which could speed up typo calculation
+  - Might speed up typo calculation
 - [ ] Prefix matching
 - [x] Drop u8 based scoring and double scoring to support longer fuzzy matches
   - Currently, alignment can be lost on longer matches causing us to mark them as having typos
