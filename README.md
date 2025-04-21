@@ -1,6 +1,6 @@
 # Frizbee
 
-Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2.3x (130.70us vs 302.35us). It matches against bytes directly, ignoring unicode. Used by [blink.cmp](https://github.com/saghen/blink.cmp) and [blink.pick](https://github.com/saghen/blink.pick).
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2.5x (116.73us vs 302.35us). It matches against bytes directly, ignoring unicode. Used by [blink.cmp](https://github.com/saghen/blink.cmp) and [blink.pick](https://github.com/saghen/blink.pick).
 
 ## Usage
 
@@ -29,11 +29,11 @@ num_samples: 10000
 frizbee                 time:   [367.25 µs 368.44 µs 369.87 µs]
 // Performs the fastest prefilter since no typos are allowed
 // Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`
-frizbee_0_typos         time:   [130.14 µs 130.70 µs 131.33 µs]
+frizbee_0_typos         time:   [116.47 µs 116.73 µs 117.05 µs]
 // Performs a prefilter since a set number of typos are allowed,
 // set via `max_typos: Some(1)`
-frizbee_1_typos         time:   [280.29 µs 283.53 µs 286.87 µs]
-frizbee_2_typos         time:   [481.09 µs 482.44 µs 484.03 µs]
+frizbee_1_typos         time:   [279.38 µs 281.56 µs 284.10 µs]
+frizbee_2_typos         time:   [478.87 µs 479.54 µs 480.29 µs]
 
 nucleo                  time:   [301.74 µs 302.35 µs 303.10 µs]
 ```
@@ -46,9 +46,7 @@ The core of the algorithm is Smith-Waterman with affine gaps and inter-sequence 
 - Supports insertion, deletion and substitution
 - Does not support transposition (i.e. swapping two adjacent characters)
 
-Due to the inter-sequence parallelism, the algorithm performs best when all the haystacks are the same length (i.e. length 8) for the given SIMD width (i.e. 16 for 256 bit SIMD with u16 scores). The `match_list` function handles this by grouping the haystacks by length into "buckets" of various sizes (`4`, `8`, `12`, ...).
-
-Any haystack with length larger than the largest bucket, or that would lead to excessive memory usage (due to a long needle combined with a long haystack), will fallback to a greedy matcher. As a result, even with `max_typos = None`, it's possible for some items to not appear in the final list.
+Due to the inter-sequence parallelism, the algorithm performs best when all the haystacks are the same length (i.e. length 8) for the given SIMD width (i.e. 16 for 256 bit SIMD with u16 scores), see the [implementation](#implementation) section for more details.
 
 The SIMD width will be chosen at runtime based on available instruction set extensions. Currently, only x86_64's AVX2 (256-bit) and AVX512 (512-bit) will be detected at runtime, falling back to 128-bit SIMD if neither is available.
 
@@ -63,6 +61,18 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
 - `CAPITALIZATION_BONUS`: Bonus for matching a capital letter after a lowercase letter (e.g. "b" on "fooBar" will receive a bonus on "B")
 - `MATCHING_CASE_BONUS`: Bonus for matching the case of the needle (e.g. "WorLd" on "WoRld" will receive a bonus on "W", "o", "d")
 - `EXACT_MATCH_BONUS`: Bonus for matching the exact needle (e.g. "foo" on "foo" will receive the bonus)
+
+### Implementation
+
+1. **Prefiltering**: When `max_typos = Some(x)`, perform a fast prefiltering step on the haystacks to exclude any items that can't match the needle
+  - **Bitmask:** if `haystack.len() < 24`, creates a u64 bitmask where each bit represents the existence of a character in the range `[33, 90]`. `XOR` the bitmask of the needle and haystack together, to get the number of characters from the needle missing in the haystack. Doesn't check order but combined with the SIMD smith waterman, it's faster to perform a rougher prefiltering step when `haystack.len() < 24`
+  - **Memchr:** if `haystack.len() >= 24 && max_typos < 2`, uses the `memchr` crate to ensure the haystack contains the entire needle with a tolerance of `max_typos` missing
+  - if neither of the above apply, always perform the full smith waterman
+2. **Bucketing**: Group the haystacks by length into buckets of various haystack lengths (`4`, `8`, `12`, ...) until the bucket reaches `$LANES` items, where `$LANES` is the number of available SIMD lanes
+  - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `1024`), fallback to a greedy matcher. As a result, it's possible for some items to not appear in the final list, even when `max_typos = None`
+3. **Smith Waterman Forward Pass**: When a bucket is full, perform SIMD smith waterman on `$LANES` items at a time
+4. **Smith Waterman Backward Pass**: If `max_typos != None` and we didn't use the `memchr` prefilter method, perform a backward (alignment) pass to find the number of typos in the haystack
+5. **Finalize:** Optionally sort (`opts.stable_sort | unstable_sort`) and return the matches
 
 ## Ideas
 
