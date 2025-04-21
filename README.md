@@ -65,11 +65,11 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
 ### Implementation
 
 1. **Prefiltering**: When `max_typos = Some(x)`, perform a fast prefiltering step on the haystacks to exclude any items that can't match the needle
-  - **Bitmask:** if `haystack.len() < 24`, creates a u64 bitmask where each bit represents the existence of a character in the range `[33, 90]`. `XOR` the bitmask of the needle and haystack together, to get the number of characters from the needle missing in the haystack. Doesn't check order but combined with the SIMD smith waterman, it's faster to perform a rougher prefiltering step when `haystack.len() < 24`
-  - **Memchr:** if `haystack.len() >= 24 && max_typos < 2`, uses the `memchr` crate to ensure the haystack contains the entire needle with a tolerance of `max_typos` missing
-  - if neither of the above apply, always perform the full smith waterman
+    - **Bitmask:** if `haystack.len() < 24`, creates a u64 bitmask where each bit represents the existence of a character in the range `[33, 90]`. `XOR` the bitmask of the needle and haystack together, to get the number of characters from the needle missing in the haystack. Doesn't check order but combined with the SIMD smith waterman, it's faster to perform a rougher prefiltering step when `haystack.len() < 24`
+    - **Memchr:** if `haystack.len() >= 24 && max_typos < 2`, uses the `memchr` crate to ensure the haystack contains the entire needle with a tolerance of `max_typos` missing
+    - if neither of the above apply, no prefiltering will be applied
 2. **Bucketing**: Group the haystacks by length into buckets of various haystack lengths (`4`, `8`, `12`, ...) until the bucket reaches `$LANES` items, where `$LANES` is the number of available SIMD lanes
-  - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `1024`), fallback to a greedy matcher. As a result, it's possible for some items to not appear in the final list, even when `max_typos = None`
+    - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `1024`), fallback to a greedy matcher. As a result, it's possible for some items to not appear in the final list, even when `max_typos = None`
 3. **Smith Waterman Forward Pass**: When a bucket is full, perform SIMD smith waterman on `$LANES` items at a time
 4. **Smith Waterman Backward Pass**: If `max_typos != None` and we didn't use the `memchr` prefilter method, perform a backward (alignment) pass to find the number of typos in the haystack
 5. **Finalize:** Optionally sort (`opts.stable_sort | unstable_sort`) and return the matches
