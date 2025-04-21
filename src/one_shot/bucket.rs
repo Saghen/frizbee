@@ -40,11 +40,11 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
             min_score: opts.min_score,
             max_typos: opts.max_typos,
             prefilter: match (opts.prefilter, opts.max_typos) {
-                (false, _) => PrefilterMethod::None,
-                (_, None) => PrefilterMethod::None,
                 (true, Some(0)) if W >= 24 => PrefilterMethod::Memchr,
                 (true, Some(1)) if W >= 20 => PrefilterMethod::Memchr,
-                (true, _) => PrefilterMethod::Bitmask,
+                // TODO: disable on long haystacks? arbitrarily picked 48 for now
+                (true, _) if W < 48 => PrefilterMethod::Bitmask,
+                _ => PrefilterMethod::None,
             },
             matched_indices: opts.matched_indices,
         }
