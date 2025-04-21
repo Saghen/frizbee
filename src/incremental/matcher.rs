@@ -136,7 +136,7 @@ impl IncrementalMatcher {
         for bucket in self.buckets.iter_mut() {
             bucket.process(
                 prefix_to_keep,
-                &needle,
+                needle,
                 matches,
                 opts.min_score,
                 opts.max_typos,
@@ -153,7 +153,7 @@ mod tests {
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        let mut matcher = IncrementalMatcher::new(&vec![haystack]);
+        let mut matcher = IncrementalMatcher::new(&[haystack]);
         matcher.match_needle(needle, Options::default())[0].score
     }
 

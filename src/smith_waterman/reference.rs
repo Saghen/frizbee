@@ -115,8 +115,7 @@ pub fn typos_from_score_matrix<const W: usize>(score_matrix: Vec<[u16; W]>) -> u
     // Get the starting position by looking at the last column
     // (last character of the needle)
     let last_column = score_matrix.last().unwrap();
-    for idx in 0..W {
-        let row_score = last_column[idx];
+    for (idx, &row_score) in last_column.iter().enumerate() {
         if row_score > score {
             score = row_score;
             positions = idx;

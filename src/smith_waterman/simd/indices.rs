@@ -30,10 +30,7 @@ where
         }
     }
 
-    let max_score_positions = max_rows
-        .to_array()
-        .into_iter()
-        .zip(max_cols.to_array().into_iter());
+    let max_score_positions = max_rows.to_array().into_iter().zip(max_cols.to_array());
 
     // Traceback and store the matched indices
     let mut indices = vec![HashSet::new(); L];
@@ -43,7 +40,7 @@ where
 
         let mut row_idx: usize = row_idx.into();
         let mut col_idx: usize = col_idx.into();
-        let mut score = score_matrices[col_idx][row_idx][idx].into();
+        let mut score = score_matrices[col_idx][row_idx][idx];
 
         // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
         while score > 0.into() {

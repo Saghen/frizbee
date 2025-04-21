@@ -64,7 +64,7 @@ where
         max_typos: Option<u16>,
     ) {
         let new_needle_chars = new_needle_chars
-            .into_iter()
+            .iter()
             .map(|&x| NeedleChar::new(x.into()))
             .collect::<Box<[_]>>();
 
@@ -107,13 +107,12 @@ where
 
         // TODO: DRY w/ smith_waterman
         let scores: [u16; L] = std::array::from_fn(|i| {
-            let score = all_time_max_score[i].into();
-            // TODO: exact match bonus - this is going to be tricky becayse raw haystacks aren't
+            all_time_max_score[i].into()
+            // TODO: exact match bonus - this is going to be tricky because raw haystacks aren't
             // currently stored. perhaps simd the comparison?
             // if haystacks[i] == needle_str {
             //     score += EXACT_MATCH_BONUS;
             // }
-            score
         });
 
         // TODO: typos
