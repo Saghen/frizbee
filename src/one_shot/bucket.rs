@@ -124,6 +124,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         let (scores, score_matrix, exact_matches) = smith_waterman::<N, W, L>(
             self.needle,
             &self.haystacks.get(0..L).unwrap().try_into().unwrap(),
+            self.max_typos,
         );
 
         let typos = self

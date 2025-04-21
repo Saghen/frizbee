@@ -90,6 +90,7 @@ where
             };
 
             smith_waterman_inner(
+                0,
                 W,
                 needle_char,
                 &self.haystacks,
