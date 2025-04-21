@@ -1,8 +1,66 @@
+use std::cmp::Reverse;
+
 use super::bucket::FixedWidthBucket;
+
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Match, Options};
-use std::cmp::Reverse;
+
+/// Computes the Smith-Waterman score with affine gaps for the list of given targets with
+/// multithreading.
+///
+/// You should call this function with as many targets as you have available as it will
+/// automatically chunk the targets based on string length to avoid unnecessary computation
+/// due to SIMD
+pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
+    needle: S1,
+    haystacks: &[S2],
+    opts: Options,
+    max_threads: usize,
+) -> Vec<Match> {
+    // TODO: 20000 was chosen arbitrarily, need to benchmark
+    let thread_count = (haystacks.len() / 20000).min(max_threads);
+    let items_per_thread = haystacks.len() / thread_count;
+
+    let needle = needle.as_ref().to_owned();
+
+    let mut matches = vec![None; haystacks.len()];
+    std::thread::scope(|s| {
+        let mut matches_slice = matches.as_mut_slice();
+
+        for haystacks in haystacks.chunks_exact(items_per_thread) {
+            let (chunk_slice, remaining_slice) = matches_slice.split_at_mut(haystacks.len());
+            matches_slice = remaining_slice;
+            let needle = needle.clone();
+            s.spawn(move || {
+                match_list_impl(needle, haystacks, opts, chunk_slice);
+            });
+        }
+    });
+
+    if opts.stable_sort {
+        matches.sort_by_key(|mtch| (mtch.is_some()));
+    } else if opts.unstable_sort {
+        matches.sort_unstable_by_key(|mtch| (mtch.is_some()));
+    }
+
+    let first_none = matches.iter().position(|m| m.is_none());
+    if let Some(first_none) = first_none {
+        matches.truncate(first_none);
+    }
+
+    // Now convert Vec<Option<T>> to Vec<T> in-place
+    let mut v = matches;
+    let ptr = v.as_mut_ptr() as *mut Match;
+    let len = v.len();
+    let cap = v.capacity();
+
+    // Prevent the old vector from being dropped
+    std::mem::forget(v);
+
+    // Create a Vec<T> from the raw parts
+    unsafe { Vec::from_raw_parts(ptr, len, cap) }
+}
 
 /// Computes the Smith-Waterman score with affine gaps for the list of given targets.
 ///
@@ -14,18 +72,39 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     haystacks: &[S2],
     opts: Options,
 ) -> Vec<Match> {
+    let mut matches = vec![None; haystacks.len()];
+
+    match_list_impl(needle, haystacks, opts, &mut matches);
+
+    let mut matches = matches.into_iter().flatten().collect::<Vec<_>>();
+
+    // Sorting
+    if opts.stable_sort {
+        matches.sort_by_key(|mtch| Reverse(mtch.score));
+    } else if opts.unstable_sort {
+        matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
+    }
+
+    matches
+}
+
+fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
+    needle: S1,
+    haystacks: &[S2],
+    opts: Options,
+    matches: &mut [Option<Match>],
+) {
     let needle = needle.as_ref();
     if needle.is_empty() {
-        return haystacks
-            .iter()
-            .enumerate()
-            .map(|(i, _)| Match {
+        for (i, _) in haystacks.iter().enumerate() {
+            matches[i] = Some(Match {
                 index_in_haystack: i,
                 score: 0,
                 exact: false,
                 indices: None,
-            })
-            .collect();
+            });
+        }
+        return;
     }
 
     let needle_bitmask = string_to_bitmask(needle.as_bytes());
@@ -50,12 +129,6 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     let mut bucket_size_768 = FixedWidthBucket::<768>::new(needle, needle_bitmask, &opts);
     let mut bucket_size_1024 = FixedWidthBucket::<1024>::new(needle, needle_bitmask, &opts);
 
-    let mut matches = if opts.max_typos.is_none() {
-        Vec::with_capacity(haystacks.len())
-    } else {
-        vec![]
-    };
-
     // If max_typos is set, we can ignore any haystacks that are shorter than the needle
     // minus the max typos, since it's impossible for them to match
     let min_haystack_len = opts
@@ -76,7 +149,7 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
         // fallback to greedy matching
         if haystack.len() > max_haystack_len {
             if let Some((score, indices)) = match_greedy(needle, haystack) {
-                matches.push(Match {
+                matches[i] = Some(Match {
                     index_in_haystack: i,
                     score,
                     exact: false,
@@ -88,30 +161,30 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
 
         // Pick the bucket to insert into based on the length of the haystack
         match haystack.len() {
-            0..=4 => bucket_size_4.add_haystack(&mut matches, haystack, i),
-            5..=8 => bucket_size_8.add_haystack(&mut matches, haystack, i),
-            9..=12 => bucket_size_12.add_haystack(&mut matches, haystack, i),
-            13..=16 => bucket_size_16.add_haystack(&mut matches, haystack, i),
-            17..=20 => bucket_size_20.add_haystack(&mut matches, haystack, i),
-            21..=24 => bucket_size_24.add_haystack(&mut matches, haystack, i),
-            25..=32 => bucket_size_32.add_haystack(&mut matches, haystack, i),
-            33..=48 => bucket_size_48.add_haystack(&mut matches, haystack, i),
-            49..=64 => bucket_size_64.add_haystack(&mut matches, haystack, i),
-            65..=96 => bucket_size_96.add_haystack(&mut matches, haystack, i),
-            97..=128 => bucket_size_128.add_haystack(&mut matches, haystack, i),
-            129..=160 => bucket_size_160.add_haystack(&mut matches, haystack, i),
-            161..=192 => bucket_size_192.add_haystack(&mut matches, haystack, i),
-            193..=224 => bucket_size_224.add_haystack(&mut matches, haystack, i),
-            225..=256 => bucket_size_256.add_haystack(&mut matches, haystack, i),
-            257..=384 => bucket_size_384.add_haystack(&mut matches, haystack, i),
-            385..=512 => bucket_size_512.add_haystack(&mut matches, haystack, i),
-            513..=768 => bucket_size_768.add_haystack(&mut matches, haystack, i),
-            769..=1024 => bucket_size_1024.add_haystack(&mut matches, haystack, i),
+            0..=4 => bucket_size_4.add_haystack(matches, haystack, i),
+            5..=8 => bucket_size_8.add_haystack(matches, haystack, i),
+            9..=12 => bucket_size_12.add_haystack(matches, haystack, i),
+            13..=16 => bucket_size_16.add_haystack(matches, haystack, i),
+            17..=20 => bucket_size_20.add_haystack(matches, haystack, i),
+            21..=24 => bucket_size_24.add_haystack(matches, haystack, i),
+            25..=32 => bucket_size_32.add_haystack(matches, haystack, i),
+            33..=48 => bucket_size_48.add_haystack(matches, haystack, i),
+            49..=64 => bucket_size_64.add_haystack(matches, haystack, i),
+            65..=96 => bucket_size_96.add_haystack(matches, haystack, i),
+            97..=128 => bucket_size_128.add_haystack(matches, haystack, i),
+            129..=160 => bucket_size_160.add_haystack(matches, haystack, i),
+            161..=192 => bucket_size_192.add_haystack(matches, haystack, i),
+            193..=224 => bucket_size_224.add_haystack(matches, haystack, i),
+            225..=256 => bucket_size_256.add_haystack(matches, haystack, i),
+            257..=384 => bucket_size_384.add_haystack(matches, haystack, i),
+            385..=512 => bucket_size_512.add_haystack(matches, haystack, i),
+            513..=768 => bucket_size_768.add_haystack(matches, haystack, i),
+            769..=1024 => bucket_size_1024.add_haystack(matches, haystack, i),
 
             // fallback to greedy matching
             _ => {
                 if let Some((score, indices)) = match_greedy(needle, haystack) {
-                    matches.push(Match {
+                    matches[i] = Some(Match {
                         index_in_haystack: i,
                         score,
                         exact: false,
@@ -124,34 +197,25 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     }
 
     // Run processing on remaining haystacks in the buckets
-    bucket_size_4.finalize(&mut matches);
-    bucket_size_8.finalize(&mut matches);
-    bucket_size_12.finalize(&mut matches);
-    bucket_size_16.finalize(&mut matches);
-    bucket_size_20.finalize(&mut matches);
-    bucket_size_24.finalize(&mut matches);
-    bucket_size_32.finalize(&mut matches);
-    bucket_size_48.finalize(&mut matches);
-    bucket_size_64.finalize(&mut matches);
-    bucket_size_96.finalize(&mut matches);
-    bucket_size_128.finalize(&mut matches);
-    bucket_size_160.finalize(&mut matches);
-    bucket_size_192.finalize(&mut matches);
-    bucket_size_224.finalize(&mut matches);
-    bucket_size_256.finalize(&mut matches);
-    bucket_size_384.finalize(&mut matches);
-    bucket_size_512.finalize(&mut matches);
-    bucket_size_768.finalize(&mut matches);
-    bucket_size_1024.finalize(&mut matches);
-
-    // Sorting
-    if opts.stable_sort {
-        matches.sort_by_key(|mtch| Reverse(mtch.score));
-    } else if opts.unstable_sort {
-        matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
-    }
-
-    matches
+    bucket_size_4.finalize(matches);
+    bucket_size_8.finalize(matches);
+    bucket_size_12.finalize(matches);
+    bucket_size_16.finalize(matches);
+    bucket_size_20.finalize(matches);
+    bucket_size_24.finalize(matches);
+    bucket_size_32.finalize(matches);
+    bucket_size_48.finalize(matches);
+    bucket_size_64.finalize(matches);
+    bucket_size_96.finalize(matches);
+    bucket_size_128.finalize(matches);
+    bucket_size_160.finalize(matches);
+    bucket_size_192.finalize(matches);
+    bucket_size_224.finalize(matches);
+    bucket_size_256.finalize(matches);
+    bucket_size_384.finalize(matches);
+    bucket_size_512.finalize(matches);
+    bucket_size_768.finalize(matches);
+    bucket_size_1024.finalize(matches);
 }
 
 #[cfg(test)]

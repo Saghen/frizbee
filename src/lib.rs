@@ -11,7 +11,7 @@ pub mod prefilter;
 pub mod smith_waterman;
 
 pub use incremental::IncrementalMatcher;
-pub use one_shot::match_list;
+pub use one_shot::{match_list, match_list_parallel};
 
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

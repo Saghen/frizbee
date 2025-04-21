@@ -22,11 +22,21 @@ fn criterion_benchmark(c: &mut Criterion) {
             match_percentage: 0.05,
             median_length: 16,
             std_dev_length: 4,
-            num_samples: 10000,
+            num_samples: 1000000,
         },
     );
     let haystack_ref = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
 
+    c.bench_function("frizbee_parallel", |b| {
+        b.iter(|| {
+            match_list_parallel(
+                black_box(needle),
+                black_box(&haystack_ref),
+                Options::default(),
+                8,
+            )
+        })
+    });
     c.bench_function("frizbee", |b| {
         b.iter(|| {
             match_list(

@@ -12,6 +12,7 @@ enum PrefilterMethod {
     Bitmask,
 }
 
+#[derive(Debug)]
 pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     has_avx512: bool,
     has_avx2: bool,
@@ -50,7 +51,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         }
     }
 
-    pub fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize) {
+    pub fn add_haystack(&mut self, matches: &mut [Option<Match>], haystack: &'a str, idx: usize) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
                 (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
@@ -88,7 +89,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         }
     }
 
-    pub fn finalize(&mut self, matches: &mut Vec<Match>) {
+    pub fn finalize(&mut self, matches: &mut [Option<Match>]) {
         match self.length {
             17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
             9.. if self.has_avx2 => unsafe { self.finalize_256(matches) },
@@ -97,21 +98,21 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
     }
 
     #[target_feature(enable = "avx512f", enable = "avx512bitalg")]
-    unsafe fn finalize_512(&mut self, matches: &mut Vec<Match>) {
+    unsafe fn finalize_512(&mut self, matches: &mut [Option<Match>]) {
         self._finalize::<u16, 32>(matches);
     }
 
     #[target_feature(enable = "avx2")]
-    unsafe fn finalize_256(&mut self, matches: &mut Vec<Match>) {
+    unsafe fn finalize_256(&mut self, matches: &mut [Option<Match>]) {
         self._finalize::<u16, 16>(matches);
     }
 
-    fn finalize_128(&mut self, matches: &mut Vec<Match>) {
+    fn finalize_128(&mut self, matches: &mut [Option<Match>]) {
         self._finalize::<u16, 8>(matches);
     }
 
     #[inline(always)]
-    fn _finalize<N: SimdNum<L>, const L: usize>(&mut self, matches: &mut Vec<Match>)
+    fn _finalize<N: SimdNum<L>, const L: usize>(&mut self, matches: &mut [Option<Match>])
     where
         std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
         std::simd::Simd<N, L>: SimdVec<N, L>,
@@ -154,7 +155,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
             let indices = matched_indices.as_mut().and_then(|iter| iter.next());
 
             let score_idx = self.idxs[idx];
-            matches.push(Match {
+            matches[score_idx] = Some(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
                 exact: exact_matches[idx],
