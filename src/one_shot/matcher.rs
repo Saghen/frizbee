@@ -55,8 +55,19 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
         vec![]
     };
 
+    // If max_typos is set, we can ignore any haystacks that are shorter than the needle
+    // minus the max typos, since it's impossible for them to match
+    let min_haystack_len = opts
+        .max_typos
+        .map(|max| needle.len() - (max as usize))
+        .unwrap_or(0);
+
     for (i, haystack) in haystacks.iter().enumerate() {
         let haystack = haystack.as_ref();
+        if haystack.len() < min_haystack_len {
+            continue;
+        }
+
         // Pick the bucket to insert into based on the length of the haystack
         match haystack.len() {
             0..=4 => bucket_size_4.add_haystack(&mut matches, haystack, i),
