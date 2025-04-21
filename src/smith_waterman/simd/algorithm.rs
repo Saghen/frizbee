@@ -8,7 +8,8 @@ use super::{HaystackChar, NeedleChar, SimdMask, SimdNum, SimdVec};
 
 #[inline(always)]
 pub(crate) fn smith_waterman_inner<N, const L: usize>(
-    width: usize,
+    start: usize,
+    end: usize,
     needle_char: NeedleChar<N, L>,
     haystack: &[HaystackChar<N, L>],
     prev_score_col: Option<&[Simd<N, L>]>,
@@ -24,7 +25,7 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
     let mut left_gap_penalty_mask = Mask::splat(true);
     let mut delimiter_bonus_enabled_mask = Mask::splat(false);
 
-    for haystack_idx in 0..width {
+    for haystack_idx in start..end {
         let haystack_char = haystack[haystack_idx];
 
         let (diag, left) = if haystack_idx == 0 {
@@ -98,6 +99,7 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
 pub fn smith_waterman<N, const W: usize, const L: usize>(
     needle: &str,
     haystacks: &[&str; L],
+    max_typos: Option<u16>,
 ) -> ([u16; L], Vec<[Simd<N, L>; W]>, [bool; L])
 where
     N: SimdNum<L>,
@@ -114,7 +116,20 @@ where
     // State
     let mut score_matrix = vec![[N::ZERO_VEC; W]; needle.len()];
 
-    for needle_idx in 0..needle.len() {
+    for (needle_idx, haystack_start, haystack_end) in (0..needle.len()).map(|needle_idx| {
+        // When matching "asd" against "qwerty" with max_typos = 0, we can avoid matching "s"
+        // against the "q" since it's impossible for this to be a valid match
+        // And likewise, we avoid matching "d" against "q" and "w"
+        let haystack_start = max_typos
+            .map(|max_typos| needle_idx.saturating_sub(max_typos as usize))
+            .unwrap_or(0);
+        // When matching "foo" against "foobar" with max_typos = 0, we can avoid matching "f"
+        // againt "a" and "r" since it's impossible for this to be a valid match
+        let haystack_end = max_typos
+            .map(|max_typos| (W - needle.len() + needle_idx + (max_typos as usize)).min(W))
+            .unwrap_or(W);
+        (needle_idx, haystack_start, haystack_end)
+    }) {
         let needle_char = NeedleChar::new(N::from(needle[needle_idx]));
 
         let (prev_score_col, curr_score_col) = if needle_idx == 0 {
@@ -124,7 +139,14 @@ where
             (Some(a[needle_idx - 1].as_slice()), &mut b[0])
         };
 
-        smith_waterman_inner(W, needle_char, &haystack, prev_score_col, curr_score_col);
+        smith_waterman_inner(
+            haystack_start,
+            haystack_end,
+            needle_char,
+            &haystack,
+            prev_score_col,
+            curr_score_col,
+        );
     }
 
     let exact_matches = std::array::from_fn(|i| haystacks[i] == needle_str);
@@ -154,7 +176,7 @@ mod tests {
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<u16, 16, 1>(needle, &[haystack; 1]).0[0]
+        smith_waterman::<u16, 16, 1>(needle, &[haystack; 1], None).0[0]
     }
 
     #[test]

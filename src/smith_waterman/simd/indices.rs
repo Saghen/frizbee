@@ -112,7 +112,7 @@ mod tests {
 
     fn run_single_indices(needle: &str, haystack: &str) -> Vec<usize> {
         let haystacks = [haystack; 1];
-        let (_, score_matrices, _) = smith_waterman::<u16, 16, 1>(needle, &haystacks);
+        let (_, score_matrices, _) = smith_waterman::<u16, 16, 1>(needle, &haystacks, None);
         let indices = char_indices_from_scores(&score_matrices);
         indices[0].clone()
     }
@@ -139,7 +139,7 @@ mod tests {
             "toolbar",
         ];
 
-        let (_, score_matrices, _) = smith_waterman::<u16, 16, 16>(needle, &haystacks);
+        let (_, score_matrices, _) = smith_waterman::<u16, 16, 16>(needle, &haystacks, None);
         let indices = char_indices_from_scores(&score_matrices);
         for indices in indices.into_iter() {
             assert_eq!(indices, [0])

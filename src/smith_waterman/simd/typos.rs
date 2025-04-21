@@ -82,7 +82,7 @@ mod tests {
     use crate::smith_waterman::simd::smith_waterman;
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
-        typos_from_score_matrix(&smith_waterman::<u16, 4, 1>(needle, &[haystack; 1]).1)[0]
+        typos_from_score_matrix(&smith_waterman::<u16, 4, 1>(needle, &[haystack; 1], None).1)[0]
     }
 
     #[test]
