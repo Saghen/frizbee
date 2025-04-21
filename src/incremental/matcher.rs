@@ -115,9 +115,7 @@ impl IncrementalMatcher {
         self.process(common_prefix_len, needle, &mut matches, opts);
         self.needle = Some(needle.to_owned());
 
-        if opts.stable_sort {
-            matches.sort_by_key(|mtch| Reverse(mtch.score));
-        } else if opts.unstable_sort {
+        if opts.sort {
             matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
         }
 

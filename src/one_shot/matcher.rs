@@ -1,66 +1,11 @@
 use std::cmp::Reverse;
 
 use super::bucket::FixedWidthBucket;
+use super::matcher_parallel::flatten_optional_vec;
 
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Match, Options};
-
-/// Computes the Smith-Waterman score with affine gaps for the list of given targets with
-/// multithreading.
-///
-/// You should call this function with as many targets as you have available as it will
-/// automatically chunk the targets based on string length to avoid unnecessary computation
-/// due to SIMD
-pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
-    needle: S1,
-    haystacks: &[S2],
-    opts: Options,
-    max_threads: usize,
-) -> Vec<Match> {
-    // TODO: 20000 was chosen arbitrarily, need to benchmark
-    let thread_count = (haystacks.len() / 20000).min(max_threads);
-    let items_per_thread = haystacks.len() / thread_count;
-
-    let needle = needle.as_ref().to_owned();
-
-    let mut matches = vec![None; haystacks.len()];
-    std::thread::scope(|s| {
-        let mut matches_slice = matches.as_mut_slice();
-
-        for haystacks in haystacks.chunks_exact(items_per_thread) {
-            let (chunk_slice, remaining_slice) = matches_slice.split_at_mut(haystacks.len());
-            matches_slice = remaining_slice;
-            let needle = needle.clone();
-            s.spawn(move || {
-                match_list_impl(needle, haystacks, opts, chunk_slice);
-            });
-        }
-    });
-
-    if opts.stable_sort {
-        matches.sort_by_key(|mtch| (mtch.is_some()));
-    } else if opts.unstable_sort {
-        matches.sort_unstable_by_key(|mtch| (mtch.is_some()));
-    }
-
-    let first_none = matches.iter().position(|m| m.is_none());
-    if let Some(first_none) = first_none {
-        matches.truncate(first_none);
-    }
-
-    // Now convert Vec<Option<T>> to Vec<T> in-place
-    let mut v = matches;
-    let ptr = v.as_mut_ptr() as *mut Match;
-    let len = v.len();
-    let cap = v.capacity();
-
-    // Prevent the old vector from being dropped
-    std::mem::forget(v);
-
-    // Create a Vec<T> from the raw parts
-    unsafe { Vec::from_raw_parts(ptr, len, cap) }
-}
 
 /// Computes the Smith-Waterman score with affine gaps for the list of given targets.
 ///
@@ -76,19 +21,14 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
 
     match_list_impl(needle, haystacks, opts, &mut matches);
 
-    let mut matches = matches.into_iter().flatten().collect::<Vec<_>>();
-
-    // Sorting
-    if opts.stable_sort {
-        matches.sort_by_key(|mtch| Reverse(mtch.score));
-    } else if opts.unstable_sort {
+    let mut matches = flatten_optional_vec(matches);
+    if opts.sort {
         matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
     }
-
     matches
 }
 
-fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
+pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystacks: &[S2],
     opts: Options,

@@ -36,10 +36,7 @@ pub struct Options {
     /// haystack is filtered out
     pub max_typos: Option<u16>,
     /// Sort the results while maintaining the original order of the haystacks
-    pub stable_sort: bool,
-    /// Sort the results without maintaining the original order of the haystacks (much faster on
-    /// long lists)
-    pub unstable_sort: bool,
+    pub sort: bool,
     /// Calculate and include an array of matched indices for each haystack
     pub matched_indices: bool,
 }
@@ -50,8 +47,7 @@ impl Default for Options {
             prefilter: true,
             min_score: 0,
             max_typos: None,
-            stable_sort: true,
-            unstable_sort: false,
+            sort: true,
             matched_indices: false,
         }
     }
