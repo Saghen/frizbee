@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 
 use super::bucket::FixedWidthBucket;
-use super::matcher_parallel::Appendable;
+use super::Appendable;
 
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;

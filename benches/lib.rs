@@ -36,7 +36,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     max_typos: Some(0),
                     ..Default::default()
                 },
-                8,
+                16,
             )
         })
     });
@@ -46,7 +46,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(needle),
                 black_box(&haystack_ref),
                 Options::default(),
-                8,
+                16,
             )
         })
     });

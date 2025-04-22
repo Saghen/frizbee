@@ -5,7 +5,7 @@ use crate::smith_waterman::simd::{
 };
 use crate::{Match, Options};
 
-use super::matcher_parallel::Appendable;
+use super::Appendable;
 
 #[derive(Debug, Clone, Copy)]
 enum PrefilterMethod {

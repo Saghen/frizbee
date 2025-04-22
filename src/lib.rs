@@ -1,5 +1,6 @@
 #![feature(portable_simd)]
 #![feature(avx512_target_feature)]
+#![feature(get_mut_unchecked)]
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

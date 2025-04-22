@@ -4,8 +4,6 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use super::matcher_parallel::Appendable;
-
 pub struct ThreadBatch {
     pub offset: usize,
     pub pos: usize,
@@ -13,8 +11,10 @@ pub struct ThreadBatch {
 
 thread_local!(static THREAD_BATCH: RefCell<Option<ThreadBatch>> = RefCell::new(None));
 
+/// Thread-safe append-only fixed-size queue for parallel matching in cases where the number of
+/// elements is known ahead of time. !!! Only one of these can exist at a time per thread !!!
 #[derive(Debug)]
-pub struct BatchedLockFreeQueue<T> {
+pub struct FixedBatchedQueue<T> {
     consumed: bool,
     layout: Layout,
     data: *mut T,
@@ -25,10 +25,10 @@ pub struct BatchedLockFreeQueue<T> {
     batch_idx: AtomicUsize,
 }
 
-unsafe impl<T: Send> Send for BatchedLockFreeQueue<T> {}
-unsafe impl<T: Send> Sync for BatchedLockFreeQueue<T> {}
+unsafe impl<T: Send> Send for FixedBatchedQueue<T> {}
+unsafe impl<T: Send> Sync for FixedBatchedQueue<T> {}
 
-impl<T> BatchedLockFreeQueue<T> {
+impl<T> FixedBatchedQueue<T> {
     pub fn new(capacity: usize, batch_size: usize, thread_count: usize) -> Self {
         assert!(batch_size > 0, "Batch size must be greater than 0");
         assert!(
@@ -39,7 +39,7 @@ impl<T> BatchedLockFreeQueue<T> {
         // Include a buffer of `thread_count * batch_size`
         let capacity = (thread_count + capacity.div_ceil(batch_size)) * batch_size;
         let layout = Layout::array::<T>(capacity).expect("Overflow cannot happen");
-        BatchedLockFreeQueue {
+        FixedBatchedQueue {
             consumed: false,
             layout,
             data: unsafe { alloc(layout) } as *mut T,
@@ -110,19 +110,7 @@ impl<T> BatchedLockFreeQueue<T> {
     }
 }
 
-impl<T> Appendable<T> for BatchedLockFreeQueue<T> {
-    fn append(&mut self, value: T) {
-        self.push(value);
-    }
-}
-
-impl<T> Appendable<T> for std::sync::Arc<BatchedLockFreeQueue<T>> {
-    fn append(&mut self, value: T) {
-        self.push(value);
-    }
-}
-
-impl<T> Drop for BatchedLockFreeQueue<T> {
+impl<T> Drop for FixedBatchedQueue<T> {
     fn drop(&mut self) {
         if !self.consumed {
             unsafe { dealloc(self.data as *mut u8, self.layout) };
