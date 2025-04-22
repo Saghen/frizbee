@@ -22,7 +22,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             match_percentage: 0.05,
             median_length: 16,
             std_dev_length: 4,
-            num_samples: 1000000,
+            num_samples: 50000,
         },
     );
     let haystack_ref = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
@@ -36,7 +36,20 @@ fn criterion_benchmark(c: &mut Criterion) {
                     max_typos: Some(0),
                     ..Default::default()
                 },
-                16,
+                8,
+            )
+        })
+    });
+    c.bench_function("frizbee_parallel_1_typos", |b| {
+        b.iter(|| {
+            match_list_parallel(
+                black_box(needle),
+                black_box(&haystack_ref),
+                Options {
+                    max_typos: Some(1),
+                    ..Default::default()
+                },
+                8,
             )
         })
     });
@@ -46,7 +59,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(needle),
                 black_box(&haystack_ref),
                 Options::default(),
-                16,
+                8,
             )
         })
     });

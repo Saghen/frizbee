@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::Appendable;
+use super::{match_list, Appendable};
 use crate::one_shot::matcher::match_list_impl;
 use crate::{Match, Options};
 
@@ -22,9 +22,21 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     opts: Options,
     max_threads: usize,
 ) -> Vec<Match> {
-    // TODO: 5000 was chosen arbitrarily, need to benchmark
-    let thread_count = (haystacks.len() / 5000).min(max_threads);
-    let items_per_thread = haystacks.len().div_ceil(thread_count);
+    // TODO: ideally, we'd change this based on the average length of items in the haystack and the
+    // legnth of the needle. Perhaps random sampling would work well?
+    let min_items_per_thread = match opts.max_typos {
+        Some(0) => 5000,
+        // Slower prefilter makes is ~2x slower than no typos
+        Some(1) => 3000,
+        // Slower than ignoring typos since we need to perform backtracking
+        Some(_) => 2000,
+        None => 2500,
+    };
+
+    let thread_count = (haystacks.len() / min_items_per_thread).min(max_threads);
+    if thread_count == 1 {
+        return match_list(needle, haystacks, opts);
+    }
 
     // TODO: pick based on number of items and threads
     let batch_size = 512;
@@ -40,6 +52,7 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     };
     let queue = Arc::new(queue);
 
+    let items_per_thread = haystacks.len().div_ceil(thread_count);
     std::thread::scope(|s| {
         for haystacks in haystacks.chunks(items_per_thread) {
             let needle = needle.as_ref().to_owned();
