@@ -22,37 +22,12 @@ fn criterion_benchmark(c: &mut Criterion) {
             match_percentage: 0.05,
             median_length: 16,
             std_dev_length: 4,
-            num_samples: 50000,
+            num_samples: 100000,
         },
     );
     let haystack_ref = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
 
-    c.bench_function("frizbee_parallel_0_typos", |b| {
-        b.iter(|| {
-            match_list_parallel(
-                black_box(needle),
-                black_box(&haystack_ref),
-                Options {
-                    max_typos: Some(0),
-                    ..Default::default()
-                },
-                8,
-            )
-        })
-    });
-    c.bench_function("frizbee_parallel_1_typos", |b| {
-        b.iter(|| {
-            match_list_parallel(
-                black_box(needle),
-                black_box(&haystack_ref),
-                Options {
-                    max_typos: Some(1),
-                    ..Default::default()
-                },
-                8,
-            )
-        })
-    });
+    // Score all matches
     c.bench_function("frizbee_parallel", |b| {
         b.iter(|| {
             match_list_parallel(
@@ -72,10 +47,19 @@ fn criterion_benchmark(c: &mut Criterion) {
             )
         })
     });
-    c.bench_function("frizbee_incremental", |b| {
+
+    // Max typos
+    c.bench_function("frizbee_parallel_0_typos", |b| {
         b.iter(|| {
-            IncrementalMatcher::new(black_box(&haystack_ref))
-                .match_needle(black_box(needle), Options::default())
+            match_list_parallel(
+                black_box(needle),
+                black_box(&haystack_ref),
+                Options {
+                    max_typos: Some(0),
+                    ..Default::default()
+                },
+                8,
+            )
         })
     });
     c.bench_function("frizbee_0_typos", |b| {
@@ -102,6 +86,19 @@ fn criterion_benchmark(c: &mut Criterion) {
             )
         })
     });
+    c.bench_function("frizbee_parallel_1_typos", |b| {
+        b.iter(|| {
+            match_list_parallel(
+                black_box(needle),
+                black_box(&haystack_ref),
+                Options {
+                    max_typos: Some(1),
+                    ..Default::default()
+                },
+                8,
+            )
+        })
+    });
     c.bench_function("frizbee_2_typos", |b| {
         b.iter(|| {
             match_list(
@@ -115,6 +112,15 @@ fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    // Incremental
+    c.bench_function("frizbee_incremental", |b| {
+        b.iter(|| {
+            IncrementalMatcher::new(black_box(&haystack_ref))
+                .match_needle(black_box(needle), Options::default())
+        })
+    });
+
+    // Other fuzzy matchers
     c.bench_function("nucleo", |b| {
         let mut matcher = Matcher::new(Config::DEFAULT);
         let atom = Atom::new(
@@ -126,7 +132,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
         b.iter(|| atom.match_list(black_box(haystack.iter()), &mut matcher))
     });
-
     c.bench_function("skim", |b| {
         let matcher = SkimMatcherV2::default();
         let haystack_str = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
