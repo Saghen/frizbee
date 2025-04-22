@@ -27,6 +27,19 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
     let haystack_ref = haystack.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
 
+    c.bench_function("frizbee_parallel_0_typos", |b| {
+        b.iter(|| {
+            match_list_parallel(
+                black_box(needle),
+                black_box(&haystack_ref),
+                Options {
+                    max_typos: Some(0),
+                    ..Default::default()
+                },
+                8,
+            )
+        })
+    });
     c.bench_function("frizbee_parallel", |b| {
         b.iter(|| {
             match_list_parallel(
@@ -111,10 +124,10 @@ fn criterion_benchmark(c: &mut Criterion) {
                 let score = matcher.fuzzy_match(needle, item);
                 let _ = black_box(score);
                 if let Some(score) = score {
-                    matches.push((score, item.to_string()));
+                    matches.push(score);
                 }
             }
-            matches.sort_by_key(|(score, _)| *score);
+            matches.sort();
             matches
         })
     });

@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 
 use super::bucket::FixedWidthBucket;
-use super::matcher_parallel::flatten_optional_vec;
+use super::matcher_parallel::Appendable;
 
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;
@@ -17,11 +17,14 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     haystacks: &[S2],
     opts: Options,
 ) -> Vec<Match> {
-    let mut matches = vec![None; haystacks.len()];
+    let mut matches = if opts.max_typos.is_none() {
+        Vec::with_capacity(haystacks.len())
+    } else {
+        vec![]
+    };
 
     match_list_impl(needle, haystacks, opts, &mut matches);
 
-    let mut matches = flatten_optional_vec(matches);
     if opts.sort {
         matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
     }
@@ -32,12 +35,12 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystacks: &[S2],
     opts: Options,
-    matches: &mut [Option<Match>],
+    matches: &mut dyn Appendable<Match>,
 ) {
     let needle = needle.as_ref();
     if needle.is_empty() {
         for (i, _) in haystacks.iter().enumerate() {
-            matches[i] = Some(Match {
+            matches.append(Match {
                 index_in_haystack: i,
                 score: 0,
                 exact: false,
@@ -89,7 +92,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
         // fallback to greedy matching
         if haystack.len() > max_haystack_len {
             if let Some((score, indices)) = match_greedy(needle, haystack) {
-                matches[i] = Some(Match {
+                matches.append(Match {
                     index_in_haystack: i,
                     score,
                     exact: false,
@@ -124,7 +127,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
             // fallback to greedy matching
             _ => {
                 if let Some((score, indices)) = match_greedy(needle, haystack) {
-                    matches[i] = Some(Match {
+                    matches.append(Match {
                         index_in_haystack: i,
                         score,
                         exact: false,

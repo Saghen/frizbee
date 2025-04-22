@@ -47,7 +47,7 @@ impl Default for Options {
             prefilter: true,
             min_score: 0,
             max_typos: None,
-            sort: true,
+            sort: false,
             matched_indices: false,
         }
     }
