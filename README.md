@@ -1,6 +1,6 @@
 # Frizbee
 
-Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2.5x (116.73us vs 302.35us). It matches against bytes directly, ignoring unicode. Used by [blink.cmp](https://github.com/saghen/blink.cmp) and [blink.pick](https://github.com/saghen/blink.pick).
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2.5x (116.73us vs 302.35us) and scales well with multithreading (~1.25x slow down), see benchmarks. It matches against bytes directly, ignoring unicode. Used by [blink.cmp](https://github.com/saghen/blink.cmp) and eventually by [blink.pick](https://github.com/saghen/blink.pick).
 
 ## Usage
 
@@ -17,6 +17,10 @@ let matches = match_list(needle, &haystacks, Options::default());
 
 Benchmarks were run on a Ryzen 9950X3D. Results with different needles, partial match percentage, match percentage, median length, and number of samples are in the works. You may test these cases yourself via the included benchmarks.
 
+### Short Haystack
+
+When the haystack's items are < 24 characters, frizbee uses a bitmask for prefiltering, which is significantly faster than `memchr` prefiltering method.
+
 ```rust
 needle: "deadbe"
 partial_match_percentage: 0.05
@@ -25,17 +29,68 @@ median_length: 16
 std_dev_length: 4
 num_samples: 10000
 
-// Gets the scores for all of the items without any filtering
-frizbee                 time:   [367.25 µs 368.44 µs 369.87 µs]
 // Performs the fastest prefilter since no typos are allowed
-// Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`
-frizbee_0_typos         time:   [116.47 µs 116.73 µs 117.05 µs]
+// Matches the behavior of fzf/nucleo
+frizbee                 time:   [116.47 µs 116.73 µs 117.05 µs]
+nucleo                  time:   [301.74 µs 302.35 µs 303.10 µs]
+
+// Gets the scores for all of the items without any filtering
+frizbee_all_scores      time:   [367.25 µs 368.44 µs 369.87 µs]
+
 // Performs a prefilter since a set number of typos are allowed,
-// set via `max_typos: Some(1)`
+// set via `max_typos: Some(1) | Some(2)`
 frizbee_1_typos         time:   [279.38 µs 281.56 µs 284.10 µs]
 frizbee_2_typos         time:   [478.87 µs 479.54 µs 480.29 µs]
+```
 
-nucleo                  time:   [301.74 µs 302.35 µs 303.10 µs]
+### Long Haystack
+
+```rust
+needle: "deadbeef"
+partial_match_percentage: 0.05
+match_percentage: 0.05
+median_length: 32
+std_dev_length: 16
+num_samples: 1_000_000
+
+// Performs the fastest prefilter since no typos are allowed
+// Matches the behavior of fzf/nucleo
+frizbee                     time:   [32.345 ms 32.422 ms 32.502 ms]
+nucleo                      time:   [52.392 ms 52.497 ms 52.614 ms]
+
+// Gets the scores for all of the items without any filtering
+frizbee_all_scores          time:   [99.690 ms 99.825 ms 99.989 ms]
+
+// Performs a prefilter since a set number of typos are allowed,
+// set via `max_typos: Some(1)`
+frizbee_1_typos             time:   [47.667 ms 47.749 ms 47.839 ms]
+```
+
+### Parallel
+
+Using 16 threads on a much larger haystack (1_000_000 items):
+
+```rust
+needle: "deadbeef"
+partial_match_percentage: 0.05
+match_percentage: 0.05
+median_length: 32
+std_dev_length: 16
+num_samples: 1_000_000
+
+// Performs the fastest prefilter since no typos are allowed
+// Matches the behavior of fzf/nucleo
+frizbee_parallel              time:   [2.6180 ms 2.6506 ms 2.6844 ms]
+nucleo_parallel               time:   [17.133 ms 17.324 ms 17.512 ms]
+// NOTE: nucleo seems to be choked due to requiring an injector to pass items
+// into the matcher
+
+// Gets the scores for all of the items without any filtering
+frizbee_all_scores_parallel   time:   [8.7121 ms 8.8291 ms 8.9497 ms]
+
+// Performs a prefilter since a set number of typos are allowed,
+// set via `max_typos: Some(1)`
+frizbee_parallel_1_typos      time:   [3.7749 ms 3.8248 ms 3.8775 ms]
 ```
 
 ## Algorithm
@@ -72,7 +127,8 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
     - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `1024`), fallback to a greedy matcher. As a result, it's possible for some items to not appear in the final list, even when `max_typos = None`
 3. **Smith Waterman Forward Pass**: When a bucket is full, perform SIMD smith waterman on `$LANES` items at a time
 4. **Smith Waterman Backward Pass**: If `max_typos != None` and we didn't use the `memchr` prefilter method, perform a backward (alignment) pass to find the number of typos in the haystack
-5. **Finalize:** Optionally sort (`opts.stable_sort | unstable_sort`) and return the matches
+    - If `opts.matched_indices = true`, perform a second backward pass to find the indices of the matches
+5. **Finalize:** Optionally sort (`opts.sort`) and return the matches
 
 ## Ideas
 
