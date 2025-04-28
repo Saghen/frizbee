@@ -27,9 +27,9 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
         return match_list(needle, haystacks, opts);
     }
 
-    let mut matches = match opts.max_typos {
-        Some(_) => match_list_parallel_expandable(needle, haystacks, opts, thread_count),
-        None => match_list_parallel_fixed(needle, haystacks, opts, thread_count),
+    let mut matches = match (opts.max_typos, opts.min_score) {
+        (None, 0) => match_list_parallel_fixed(needle, haystacks, opts, thread_count),
+        _ => match_list_parallel_expandable(needle, haystacks, opts, thread_count),
     };
 
     if opts.sort {
@@ -54,6 +54,7 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     thread_count: usize,
 ) -> Vec<Match> {
     assert!(opts.max_typos.is_none(), "max_typos must be None");
+    assert!(opts.min_score == 0, "min_score must be 0");
 
     let mut matches = Vec::with_capacity(haystacks.len());
     #[allow(clippy::uninit_vec)]

@@ -16,7 +16,7 @@ pub mod smith_waterman;
 pub use incremental::IncrementalMatcher;
 pub use one_shot::{match_list, match_list_parallel};
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Match {
     pub score: u16,
@@ -59,8 +59,6 @@ pub struct Options {
     pub max_typos: Option<u16>,
     /// Sort the results while maintaining the original order of the haystacks
     pub sort: bool,
-    /// Calculate and include an array of matched indices for each haystack
-    pub matched_indices: bool,
 }
 
 impl Default for Options {
@@ -70,7 +68,6 @@ impl Default for Options {
             min_score: 0,
             max_typos: Some(0),
             sort: true,
-            matched_indices: false,
         }
     }
 }

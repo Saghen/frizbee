@@ -1,7 +1,7 @@
 use crate::prefilter::bitmask::string_to_bitmask_simd;
 use crate::prefilter::memchr;
 use crate::smith_waterman::simd::{
-    char_indices_from_scores, smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
+    smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
 };
 use crate::{Match, Options};
 
@@ -26,7 +26,6 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     min_score: u16,
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
-    matched_indices: bool,
 }
 
 impl<'a, const W: usize> FixedWidthBucket<'a, W> {
@@ -49,7 +48,6 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
                 (true, _) if W < 48 => PrefilterMethod::Bitmask,
                 _ => PrefilterMethod::None,
             },
-            matched_indices: opts.matched_indices,
         }
     }
 
@@ -139,10 +137,6 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
             .max_typos
             .map(|max_typos| typos_from_score_matrix::<N, W, L>(&score_matrix, max_typos));
 
-        // let mut matched_indices = self
-        //     .matched_indices
-        //     .then(|| char_indices_from_scores(&score_matrix).into_iter());
-
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
             let score = scores[idx];
@@ -159,14 +153,11 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
                 }
             }
 
-            // let indices = matched_indices.as_mut().and_then(|iter| iter.next());
-
             let score_idx = self.idxs[idx];
             matches.append(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
                 exact: exact_matches[idx],
-                // indices,
             });
         }
 

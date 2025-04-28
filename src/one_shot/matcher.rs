@@ -1,5 +1,3 @@
-use std::cmp::Reverse;
-
 use super::bucket::FixedWidthBucket;
 use super::Appendable;
 
@@ -38,12 +36,12 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     matches
 }
 
-pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
+pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Match>>(
     needle: S1,
     haystacks: &[S2],
     index_offset: u32,
     opts: Options,
-    matches: &mut dyn Appendable<Match>,
+    matches: &mut M,
 ) {
     assert!(
         (index_offset as usize) + haystacks.len() < (u32::MAX as usize),
@@ -104,12 +102,11 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
         }
         // fallback to greedy matching
         if haystack.len() > max_haystack_len {
-            let (score, indices) = match_greedy(needle, haystack);
+            let (score, _) = match_greedy(needle, haystack);
             matches.append(Match {
                 index_in_haystack: i,
                 score,
                 exact: false,
-                // indices: opts.matched_indices.then_some(indices),
             });
             continue;
         }
@@ -138,12 +135,11 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
 
             // fallback to greedy matching
             _ => {
-                let (score, indices) = match_greedy(needle, haystack);
+                let (score, _) = match_greedy(needle, haystack);
                 matches.append(Match {
                     index_in_haystack: i,
                     score,
                     exact: false,
-                    // indices: opts.matched_indices.then_some(indices),
                 });
                 continue;
             }

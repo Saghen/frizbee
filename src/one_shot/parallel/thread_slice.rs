@@ -20,6 +20,9 @@ impl<T> ThreadSlice<T> {
 
 impl<T> Appendable<T> for ThreadSlice<T> {
     fn append(&mut self, value: T) {
+        // The consumer of the slice is responsible for ensuring that the slice
+        // will never overflow. Thus, we only use this struct when we know we'll create as many
+        // matches as there are items in the haystack
         unsafe { self.slice.add(self.pos).write(value) };
         self.pos += 1;
     }

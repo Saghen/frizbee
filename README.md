@@ -17,9 +17,9 @@ let matches = match_list(needle, &haystacks, Options::default());
 
 Benchmarks were run on a Ryzen 9950X3D. Results with different needles, partial match percentage, match percentage, median length, and number of samples are in the works. You may test these cases yourself via the included benchmarks.
 
-### Short Haystack
+### Single Threaded
 
-When the haystack's items are < 24 characters, frizbee uses a bitmask for prefiltering, which is significantly faster than `memchr` prefiltering method.
+When the haystack's items are < 24 characters, frizbee uses a bitmask for prefiltering, which is significantly faster than the `memchr` prefiltering method.
 
 ```rust
 needle: "deadbe"
@@ -43,7 +43,10 @@ frizbee_1_typos         time:   [279.38 µs 281.56 µs 284.10 µs]
 frizbee_2_typos         time:   [478.87 µs 479.54 µs 480.29 µs]
 ```
 
-### Long Haystack
+
+### Multithreaded
+
+Using 16 threads on a much larger haystack (1,000,000 items):
 
 ```rust
 needle: "deadbeef"
@@ -55,35 +58,10 @@ num_samples: 1_000_000
 
 // Performs the fastest prefilter since no typos are allowed
 // Matches the behavior of fzf/nucleo
-frizbee                     time:   [32.345 ms 32.422 ms 32.502 ms]
-nucleo                      time:   [52.392 ms 52.497 ms 52.614 ms]
-
-// Gets the scores for all of the items without any filtering
-frizbee_all_scores          time:   [99.690 ms 99.825 ms 99.989 ms]
-
-// Performs a prefilter since a set number of typos are allowed,
-// set via `max_typos: Some(1)`
-frizbee_1_typos             time:   [47.667 ms 47.749 ms 47.839 ms]
-```
-
-### Parallel
-
-Using 16 threads on a much larger haystack (1_000_000 items):
-
-```rust
-needle: "deadbeef"
-partial_match_percentage: 0.05
-match_percentage: 0.05
-median_length: 32
-std_dev_length: 16
-num_samples: 1_000_000
-
-// Performs the fastest prefilter since no typos are allowed
-// Matches the behavior of fzf/nucleo
-frizbee_parallel              time:   [2.6180 ms 2.6506 ms 2.6844 ms]
+frizbee_parallel              time:   [2.9906 ms 3.0264 ms 3.0632 ms]
 nucleo_parallel               time:   [17.133 ms 17.324 ms 17.512 ms]
 // NOTE: nucleo seems to be choked due to requiring an injector to pass items
-// into the matcher
+// into the matcher. Additionally, it doesn't sort the items
 
 // Gets the scores for all of the items without any filtering
 frizbee_all_scores_parallel   time:   [9.3590 ms 9.4473 ms 9.5351 ms]
