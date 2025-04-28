@@ -24,7 +24,7 @@ where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
     pub length: usize,
-    pub idxs: [usize; L],
+    pub idxs: [u32; L],
     pub haystacks: [HaystackChar<N, L>; W],
     pub score_matrix: Vec<[Simd<N, L>; W]>,
 }
@@ -36,7 +36,7 @@ where
     std::simd::Simd<N, L>: SimdVec<N, L>,
     std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
-    pub fn new(haystacks: &[&str; L], idxs: [usize; L], length: usize) -> Self {
+    pub fn new(haystacks: &[&str; L], idxs: [u32; L], length: usize) -> Self {
         Self {
             length,
             idxs,
@@ -137,7 +137,6 @@ where
             matches.push(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
-                indices: None,
                 exact: false,
             });
         }

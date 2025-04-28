@@ -38,6 +38,7 @@ impl IncrementalMatcher {
         let mut collection_size_1024 = IncrementalBucketCollection::<'_, u16, 1024, 8>::new();
 
         for (i, haystack) in haystacks.iter().enumerate() {
+            let i = i as u32;
             let haystack = haystack.as_ref();
             match haystack.len() {
                 0..=4 => collection_size_4.add_haystack(haystack, i, &mut buckets),

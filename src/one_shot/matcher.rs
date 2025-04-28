@@ -23,28 +23,40 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
         vec![]
     };
 
-    match_list_impl(needle, haystacks, opts, &mut matches);
+    match_list_impl(needle, haystacks, 0, opts, &mut matches);
 
     if opts.sort {
-        matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
+        #[cfg(feature = "rayon")]
+        {
+            use rayon::prelude::*;
+            matches.par_sort();
+        }
+        #[cfg(not(feature = "rayon"))]
+        matches.sort_unstable();
     }
+
     matches
 }
 
 pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystacks: &[S2],
+    index_offset: u32,
     opts: Options,
     matches: &mut dyn Appendable<Match>,
 ) {
+    assert!(
+        (index_offset as usize) + haystacks.len() < (u32::MAX as usize),
+        "haystack index overflow"
+    );
+
     let needle = needle.as_ref();
     if needle.is_empty() {
         for (i, _) in haystacks.iter().enumerate() {
             matches.append(Match {
-                index_in_haystack: i,
+                index_in_haystack: (i as u32) + index_offset,
                 score: 0,
                 exact: false,
-                indices: None,
             });
         }
         return;
@@ -85,21 +97,21 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
     let max_haystack_len = max_matrix_bytes / needle.len() / 2; // divide by 2 since we use u16
 
     for (i, haystack) in haystacks.iter().enumerate() {
+        let i = i as u32 + index_offset;
         let haystack = haystack.as_ref();
         if haystack.len() < min_haystack_len {
             continue;
         }
         // fallback to greedy matching
         if haystack.len() > max_haystack_len {
-            if let Some((score, indices)) = match_greedy(needle, haystack) {
-                matches.append(Match {
-                    index_in_haystack: i,
-                    score,
-                    exact: false,
-                    indices: opts.matched_indices.then_some(indices),
-                });
-                continue;
-            }
+            let (score, indices) = match_greedy(needle, haystack);
+            matches.append(Match {
+                index_in_haystack: i,
+                score,
+                exact: false,
+                // indices: opts.matched_indices.then_some(indices),
+            });
+            continue;
         }
 
         // Pick the bucket to insert into based on the length of the haystack
@@ -126,15 +138,14 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>>(
 
             // fallback to greedy matching
             _ => {
-                if let Some((score, indices)) = match_greedy(needle, haystack) {
-                    matches.append(Match {
-                        index_in_haystack: i,
-                        score,
-                        exact: false,
-                        indices: opts.matched_indices.then_some(indices),
-                    });
-                    continue;
-                }
+                let (score, indices) = match_greedy(needle, haystack);
+                matches.append(Match {
+                    index_in_haystack: i,
+                    score,
+                    exact: false,
+                    // indices: opts.matched_indices.then_some(indices),
+                });
+                continue;
             }
         };
     }
@@ -170,7 +181,14 @@ mod tests {
         let needle = "deadbe";
         let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
 
-        let matches = match_list(needle, &haystack, Options::default());
+        let matches = match_list(
+            needle,
+            &haystack,
+            Options {
+                max_typos: None,
+                ..Options::default()
+            },
+        );
         assert_eq!(matches.len(), 4);
         assert_eq!(matches[0].index_in_haystack, 3);
         assert_eq!(matches[1].index_in_haystack, 0);
@@ -205,7 +223,7 @@ mod tests {
         assert_eq!(exact_matches.len(), 1);
         assert_eq!(exact_matches[0].index_in_haystack, 3);
         for m in &exact_matches {
-            assert_eq!(haystack[m.index_in_haystack], needle)
+            assert_eq!(haystack[m.index_in_haystack as usize], needle)
         }
     }
 
@@ -227,7 +245,7 @@ mod tests {
         let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
         assert_eq!(exact_matches.len(), 4);
         for m in &exact_matches {
-            assert_eq!(haystack[m.index_in_haystack], needle)
+            assert_eq!(haystack[m.index_in_haystack as usize], needle)
         }
     }
 }

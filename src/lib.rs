@@ -2,6 +2,8 @@
 #![feature(avx512_target_feature)]
 #![feature(get_mut_unchecked)]
 
+use std::cmp::Ordering;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -14,15 +16,34 @@ pub mod smith_waterman;
 pub use incremental::IncrementalMatcher;
 pub use one_shot::{match_list, match_list_parallel};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Match {
-    /** Index of the match in the original list of haystacks */
-    pub index_in_haystack: usize,
-    pub indices: Option<Vec<usize>>,
     pub score: u16,
+    /** Index of the match in the original list of haystacks */
+    pub index_in_haystack: u32,
     pub exact: bool,
 }
+
+impl PartialOrd for Match {
+    fn partial_cmp(&self, other: &Match) -> Option<Ordering> {
+        Some(std::cmp::Ord::cmp(self, other))
+    }
+}
+impl Ord for Match {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score
+            .cmp(&other.score)
+            .reverse()
+            .then_with(|| self.index_in_haystack.cmp(&other.index_in_haystack))
+    }
+}
+impl PartialEq for Match {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score && self.index_in_haystack == other.index_in_haystack
+    }
+}
+impl Eq for Match {}
 
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -48,7 +69,7 @@ impl Default for Options {
             prefilter: true,
             min_score: 0,
             max_typos: Some(0),
-            sort: false,
+            sort: true,
             matched_indices: false,
         }
     }

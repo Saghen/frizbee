@@ -86,7 +86,7 @@ nucleo_parallel               time:   [17.133 ms 17.324 ms 17.512 ms]
 // into the matcher
 
 // Gets the scores for all of the items without any filtering
-frizbee_all_scores_parallel   time:   [8.7121 ms 8.8291 ms 8.9497 ms]
+frizbee_all_scores_parallel   time:   [9.3590 ms 9.4473 ms 9.5351 ms]
 
 // Performs a prefilter since a set number of typos are allowed,
 // set via `max_typos: Some(1)`

@@ -3,9 +3,11 @@ use std::{
     cell::RefCell,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Mutex,
+        Arc, Mutex,
     },
 };
+
+use crate::one_shot::Appendable;
 
 thread_local!(static THREAD_IDX: RefCell<Option<usize>> = const { RefCell::new(None) });
 
@@ -13,23 +15,23 @@ thread_local!(static THREAD_IDX: RefCell<Option<usize>> = const { RefCell::new(N
 /// too many writes and the number of elements cannot be known ahead of time. !!! Only one of these
 /// can exist at a time per thread !!!
 #[derive(Debug)]
-pub struct ExpandableBatchedQueue<T> {
+pub struct ExpandableBatchedVec<T> {
     data: Mutex<Vec<T>>,
     thread_batches: Vec<ThreadBatch<T>>,
     thread_idx: AtomicUsize,
     thread_count: usize,
 }
 
-unsafe impl<T: Send> Send for ExpandableBatchedQueue<T> {}
-unsafe impl<T: Sync> Sync for ExpandableBatchedQueue<T> {}
+unsafe impl<T: Send> Send for ExpandableBatchedVec<T> {}
+unsafe impl<T: Sync> Sync for ExpandableBatchedVec<T> {}
 
-impl<T> ExpandableBatchedQueue<T> {
+impl<T> ExpandableBatchedVec<T> {
     pub fn new(batch_size: usize, thread_count: usize) -> Self {
         let mut batches = Vec::with_capacity(thread_count);
         for _ in 0..thread_count {
             batches.push(ThreadBatch::new(batch_size));
         }
-        ExpandableBatchedQueue {
+        ExpandableBatchedVec {
             data: Mutex::new(vec![]),
             thread_batches: batches,
             thread_idx: AtomicUsize::new(0),
@@ -119,6 +121,12 @@ impl<T> ExpandableBatchedQueue<T> {
     }
 }
 
+impl<T> Appendable<T> for Arc<ExpandableBatchedVec<T>> {
+    fn append(&mut self, value: T) {
+        unsafe { Arc::get_mut_unchecked(self).push(value) };
+    }
+}
+
 #[derive(Clone, Debug)]
 struct ThreadBatch<T> {
     pub data: *mut T,
@@ -161,7 +169,10 @@ impl<T> Drop for ThreadBatch<T> {
             std::ptr::drop_in_place(slice_ptr);
 
             // Deallocate the memory
-            dealloc(self.data as *mut u8, Layout::array::<T>(self.pos).unwrap())
+            dealloc(self.data as *mut u8, Layout::array::<T>(self.len).unwrap())
         };
+
+        // Avoid double-free on panic during drop_in_place etc.
+        self.data = std::ptr::null_mut();
     }
 }

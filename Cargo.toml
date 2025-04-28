@@ -12,7 +12,7 @@ lto = true
 criterion = "0.5"
 iai-callgrind = "0.14.0"
 nucleo = "0.5.0"
-rand = "0.9.0"
+rand = "0.9.1"
 rand_distr = "0.5.1"
 
 [[bench]]
@@ -25,8 +25,10 @@ harness = false
 
 [dependencies]
 memchr = "2.7.4"
-serde = { version = "1.0", features = ["derive"], optional = true }
+rayon = { version = "1.10.0", optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [features]
-default = []
+default = ["rayon"]
 serde = ["dep:serde"]
+rayon = ["dep:rayon"]

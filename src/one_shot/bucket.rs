@@ -22,7 +22,7 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     needle: &'a str,
     needle_bitmask: u64,
     haystacks: [&'a str; 32],
-    idxs: [usize; 32],
+    idxs: [u32; 32],
     min_score: u16,
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
@@ -57,7 +57,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         &mut self,
         matches: &mut dyn Appendable<Match>,
         haystack: &'a str,
-        idx: usize,
+        idx: u32,
     ) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
@@ -139,9 +139,9 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
             .max_typos
             .map(|max_typos| typos_from_score_matrix::<N, W, L>(&score_matrix, max_typos));
 
-        let mut matched_indices = self
-            .matched_indices
-            .then(|| char_indices_from_scores(&score_matrix).into_iter());
+        // let mut matched_indices = self
+        //     .matched_indices
+        //     .then(|| char_indices_from_scores(&score_matrix).into_iter());
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
@@ -159,14 +159,14 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
                 }
             }
 
-            let indices = matched_indices.as_mut().and_then(|iter| iter.next());
+            // let indices = matched_indices.as_mut().and_then(|iter| iter.next());
 
             let score_idx = self.idxs[idx];
             matches.append(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
                 exact: exact_matches[idx],
-                indices,
+                // indices,
             });
         }
 
