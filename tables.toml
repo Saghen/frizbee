@@ -1,0 +1,71 @@
+[top_comments]
+
+Environment = """
+You may test these cases yourself via the included benchmarks. Benchmarks were run on a Ryzen 9950x3D and the following environment:
+
+```bash
+$ cargo version -v
+cargo 1.87.0-nightly (6cf826701 2025-03-14)
+release: 1.87.0-nightly
+commit-hash: 6cf8267012570f63d6b86e85a2ae5627de52df9e
+commit-date: 2025-03-14
+host: x86_64-unknown-linux-gnu
+libgit2: 1.9.0 (sys:0.20.0 vendored)
+libcurl: 8.12.1-DEV (sys:0.4.80+curl-8.12.1 vendored ssl:OpenSSL/3.4.1)
+ssl: OpenSSL 3.4.1 11 Feb 2025
+os: NixOS 25.5.0 [64-bit]
+```
+"""
+
+Explanation = """
+In each of the benchmarks, the median length of the haystacks is varied from 8 to 128.
+
+- **Frizbee**: Uses the `Options::default()`, where we perform the fastest prefilter since no typos are allowed
+- **All Scores**: Set via `max_typos: None`, gets the scores for all of the items without any filtering
+- **1 Typo**: Set via `max_typos: Some(1)`, performs a slower, but still effective prefilter since a set number of typos are allowed
+- **Nucleo**: Runs with normalization disabled, case insentivity enabled and fuzzy matching enabled
+- **\\$BENCH (Parallel)**: Same as $BENCH, but uses 8 threads to perform the matching in parallel
+
+NOTE: The nucleo parallel benchmark is not included since I haven't discovered a way to wait ensure the matcher has finished running at the moment.
+"""
+
+[table_comments]
+
+partial_match = """
+What I would consider the typical case, where 5% of the haystack matches the needle and 20% of the haystack includes characters from the needle, but doesn't fully match.
+
+```rust
+needle: "deadbeef"
+partial_match_percentage: 0.20
+match_percentage: 0.05
+median_length: varies
+std_dev_length: median_length / 4
+num_samples: 100000
+```
+"""
+
+no_match = """
+None of the haystacks partially or fully match the needle, meaning none of the characters in the needle are present in the haystack.
+
+```rust
+needle: "deadbeef"
+match_percentage: 0.0
+partial_match_percentage: 0.0
+median_length: varies
+std_dev_length: median_length / 4
+num_samples: 100000
+```
+"""
+
+all_match = """
+All of the haystacks match the needle. The "All Scores" case will always be the fastest since it skips the prefiltering step, which no longer filters any of the items out.
+
+```rust
+needle: "deadbeef"
+match_percentage: 1.0
+partial_match_percentage: 0.0
+median_length: varies
+std_dev_length: median_length / 4
+num_samples: 100000
+```
+"""

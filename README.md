@@ -19,7 +19,7 @@ Benchmarks were run on a Ryzen 9950X3D. Results with different needles, partial 
 
 ### Single Threaded
 
-When the haystack's items are < 24 characters, frizbee uses a bitmask for prefiltering, which is significantly faster than the `memchr` prefiltering method.
+When the haystack's items are < 24 characters, frizbee uses a bitmask for prefiltering, which is faster than the `memchr` prefiltering method.
 
 ```rust
 needle: "deadbe"
@@ -40,6 +40,8 @@ frizbee_all_scores      time:   [367.25 µs 368.44 µs 369.87 µs]
 // Performs a prefilter since a set number of typos are allowed,
 // set via `max_typos: Some(1) | Some(2)`
 frizbee_1_typos         time:   [279.38 µs 281.56 µs 284.10 µs]
+// Slower than getting all the scores because we must perform
+// a backward pass to get the number of typos
 frizbee_2_typos         time:   [478.87 µs 479.54 µs 480.29 µs]
 ```
 

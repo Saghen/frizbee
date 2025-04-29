@@ -19,9 +19,9 @@ rand_distr = "0.5.1"
 name = "lib"
 harness = false
 
-[[bench]]
-name = "smith_waterman_iai"
-harness = false
+# [[bench]]
+# name = "smith_waterman_iai"
+# harness = false
 
 [dependencies]
 memchr = "2.7.4"
