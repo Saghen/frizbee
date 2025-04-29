@@ -6,10 +6,7 @@ use crate::r#const::*;
 
 const DELIMITERS: [u8; 7] = [b' ', b'/', b'.', b',', b'_', b'-', b':'];
 
-pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
-    needle: S1,
-    haystack: S2,
-) -> Option<(u16, Vec<usize>)> {
+pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2) -> (u16, Vec<usize>) {
     let needle = needle.as_ref().as_bytes();
     let haystack = haystack.as_ref().as_bytes();
 
@@ -89,15 +86,15 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
             continue 'outer;
         }
 
-        // didn't find a match, so return None
-        return None;
+        // didn't find a match
+        return (0, vec![]);
     }
 
     if needle == haystack {
         score += EXACT_MATCH_BONUS;
     }
 
-    Some((score, indices))
+    (score, indices)
 }
 
 #[cfg(test)]
@@ -107,7 +104,7 @@ mod tests {
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        match_greedy(needle, haystack).unwrap().0
+        match_greedy(needle, haystack).0
     }
 
     #[test]
@@ -125,8 +122,8 @@ mod tests {
 
     #[test]
     fn test_no_match() {
-        assert_eq!(match_greedy("a", "b"), None);
-        assert_eq!(match_greedy("ab", "ba"), None);
+        assert_eq!(get_score("a", "b"), 0);
+        assert_eq!(get_score("ab", "ba"), 0);
     }
 
     #[test]

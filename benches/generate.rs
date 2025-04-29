@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use rand::prelude::*;
 use rand_distr::{Alphanumeric, Distribution, Normal};
 
@@ -7,6 +9,7 @@ enum MatchType {
     Full,
 }
 
+#[derive(Clone, Debug)]
 pub struct HaystackGenerationOptions {
     /// Seed for the random number generator to ensure consistent data.
     pub seed: u64,
@@ -20,6 +23,55 @@ pub struct HaystackGenerationOptions {
     pub std_dev_length: usize,
     /// Number of data samples to generate
     pub num_samples: usize,
+}
+
+impl HaystackGenerationOptions {
+    pub fn get_permutations(
+        seed: u64,
+        match_percentage_steps: Vec<(f64, f64)>,
+        median_length_steps: Vec<usize>,
+        num_samples_steps: Vec<usize>,
+    ) -> Vec<Self> {
+        let mut permutations = Vec::new();
+
+        for &median_length in &median_length_steps {
+            for &(match_percentage, partial_match_percentage) in &match_percentage_steps {
+                for &num_samples in &num_samples_steps {
+                    permutations.push(Self {
+                        seed,
+                        partial_match_percentage,
+                        match_percentage,
+                        median_length,
+                        std_dev_length: median_length / 4,
+                        num_samples,
+                    });
+                }
+            }
+        }
+
+        permutations
+    }
+
+    pub fn estimate_size(&self) -> u64 {
+        (self.num_samples * self.median_length) as u64
+    }
+}
+
+impl Display for HaystackGenerationOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let match_title = if self.match_percentage == 0.0 && self.partial_match_percentage == 0.0 {
+            "no_match".to_string()
+        } else if self.match_percentage == 1.0 {
+            "all_match".to_string()
+        } else {
+            format!("{:.0}%_match", self.match_percentage * 100.0,)
+        };
+        write!(
+            f,
+            "length_{}/{}/items_{}",
+            self.median_length, match_title, self.num_samples,
+        )
+    }
 }
 
 /// Generates a dataset matching the specified criteria.

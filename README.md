@@ -1,6 +1,6 @@
 # Frizbee
 
-Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by ~2.5x (116.73us vs 302.35us). It matches against bytes directly, ignoring unicode. Used by [blink.cmp](https://github.com/saghen/blink.cmp) and [blink.pick](https://github.com/saghen/blink.pick).
+Frizbee is a SIMD fuzzy string matcher written in Rust. The core of the algorithm uses Smith-Waterman with affine gaps, similar to FZF, but with many of the scoring bonuses from FZY. In the included benchmark, with typo resistance disabled, it outperforms nucleo by 1.5-2.5x and scales well with multithreading (~1.25x slow down), see [benchmarks](./BENCHMARKS.md). It matches against bytes directly, ignoring unicode. Used by [blink.cmp](https://github.com/saghen/blink.cmp) and eventually by [blink.pick](https://github.com/saghen/blink.pick).
 
 ## Usage
 
@@ -15,28 +15,7 @@ let matches = match_list(needle, &haystacks, Options::default());
 
 ## Benchmarks
 
-Benchmarks were run on a Ryzen 9950X3D. Results with different needles, partial match percentage, match percentage, median length, and number of samples are in the works. You may test these cases yourself via the included benchmarks.
-
-```rust
-needle: "deadbe"
-partial_match_percentage: 0.05
-match_percentage: 0.05
-median_length: 16
-std_dev_length: 4
-num_samples: 10000
-
-// Gets the scores for all of the items without any filtering
-frizbee                 time:   [367.25 µs 368.44 µs 369.87 µs]
-// Performs the fastest prefilter since no typos are allowed
-// Matches the behavior of fzf/nucleo, set via `max_typos: Some(0)`
-frizbee_0_typos         time:   [116.47 µs 116.73 µs 117.05 µs]
-// Performs a prefilter since a set number of typos are allowed,
-// set via `max_typos: Some(1)`
-frizbee_1_typos         time:   [279.38 µs 281.56 µs 284.10 µs]
-frizbee_2_typos         time:   [478.87 µs 479.54 µs 480.29 µs]
-
-nucleo                  time:   [301.74 µs 302.35 µs 303.10 µs]
-```
+See [BENCHMARKS.md](./BENCHMARKS.md)
 
 ## Algorithm
 
@@ -72,11 +51,13 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
     - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `1024`), fallback to a greedy matcher. As a result, it's possible for some items to not appear in the final list, even when `max_typos = None`
 3. **Smith Waterman Forward Pass**: When a bucket is full, perform SIMD smith waterman on `$LANES` items at a time
 4. **Smith Waterman Backward Pass**: If `max_typos != None` and we didn't use the `memchr` prefilter method, perform a backward (alignment) pass to find the number of typos in the haystack
-5. **Finalize:** Optionally sort (`opts.stable_sort | unstable_sort`) and return the matches
+    - If `opts.matched_indices = true`, perform a second backward pass to find the indices of the matches
+5. **Finalize:** Optionally sort (`opts.sort`) and return the matches
 
 ## Ideas
 
 - [x] Runtime instruction selection (512-bit and 256-bit SIMD)
+- [x] Multithreading
 - [ ] Calculate alignment directions during matrix building
   - Might speed up typo calculation
 - [ ] Prefix matching

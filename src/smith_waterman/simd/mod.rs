@@ -1,7 +1,7 @@
-pub mod algorithm;
-pub mod indices;
-pub mod types;
-pub mod typos;
+mod algorithm;
+mod indices;
+mod types;
+mod typos;
 
 pub use algorithm::*;
 pub use indices::*;

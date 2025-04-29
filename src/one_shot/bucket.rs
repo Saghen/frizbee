@@ -1,9 +1,11 @@
 use crate::prefilter::bitmask::string_to_bitmask_simd;
 use crate::prefilter::memchr;
 use crate::smith_waterman::simd::{
-    char_indices_from_scores, smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
+    smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
 };
 use crate::{Match, Options};
+
+use super::Appendable;
 
 #[derive(Debug, Clone, Copy)]
 enum PrefilterMethod {
@@ -12,6 +14,7 @@ enum PrefilterMethod {
     Bitmask,
 }
 
+#[derive(Debug)]
 pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     has_avx512: bool,
     has_avx2: bool,
@@ -19,11 +22,10 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     needle: &'a str,
     needle_bitmask: u64,
     haystacks: [&'a str; 32],
-    idxs: [usize; 32],
+    idxs: [u32; 32],
     min_score: u16,
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
-    matched_indices: bool,
 }
 
 impl<'a, const W: usize> FixedWidthBucket<'a, W> {
@@ -46,11 +48,15 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
                 (true, _) if W < 48 => PrefilterMethod::Bitmask,
                 _ => PrefilterMethod::None,
             },
-            matched_indices: opts.matched_indices,
         }
     }
 
-    pub fn add_haystack(&mut self, matches: &mut Vec<Match>, haystack: &'a str, idx: usize) {
+    pub fn add_haystack(
+        &mut self,
+        matches: &mut dyn Appendable<Match>,
+        haystack: &'a str,
+        idx: u32,
+    ) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
                 (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
@@ -88,7 +94,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         }
     }
 
-    pub fn finalize(&mut self, matches: &mut Vec<Match>) {
+    pub fn finalize(&mut self, matches: &mut dyn Appendable<Match>) {
         match self.length {
             17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
             9.. if self.has_avx2 => unsafe { self.finalize_256(matches) },
@@ -97,21 +103,21 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
     }
 
     #[target_feature(enable = "avx512f", enable = "avx512bitalg")]
-    unsafe fn finalize_512(&mut self, matches: &mut Vec<Match>) {
+    unsafe fn finalize_512(&mut self, matches: &mut dyn Appendable<Match>) {
         self._finalize::<u16, 32>(matches);
     }
 
     #[target_feature(enable = "avx2")]
-    unsafe fn finalize_256(&mut self, matches: &mut Vec<Match>) {
+    unsafe fn finalize_256(&mut self, matches: &mut dyn Appendable<Match>) {
         self._finalize::<u16, 16>(matches);
     }
 
-    fn finalize_128(&mut self, matches: &mut Vec<Match>) {
+    fn finalize_128(&mut self, matches: &mut dyn Appendable<Match>) {
         self._finalize::<u16, 8>(matches);
     }
 
     #[inline(always)]
-    fn _finalize<N: SimdNum<L>, const L: usize>(&mut self, matches: &mut Vec<Match>)
+    fn _finalize<N: SimdNum<L>, const L: usize>(&mut self, matches: &mut dyn Appendable<Match>)
     where
         std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
         std::simd::Simd<N, L>: SimdVec<N, L>,
@@ -131,10 +137,6 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
             .max_typos
             .map(|max_typos| typos_from_score_matrix::<N, W, L>(&score_matrix, max_typos));
 
-        let mut matched_indices = self
-            .matched_indices
-            .then(|| char_indices_from_scores(&score_matrix).into_iter());
-
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
             let score = scores[idx];
@@ -151,14 +153,11 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
                 }
             }
 
-            let indices = matched_indices.as_mut().and_then(|iter| iter.next());
-
             let score_idx = self.idxs[idx];
-            matches.push(Match {
+            matches.append(Match {
                 index_in_haystack: score_idx,
                 score: scores[idx],
                 exact: exact_matches[idx],
-                indices,
             });
         }
 

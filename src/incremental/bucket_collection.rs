@@ -10,7 +10,7 @@ where
 {
     length: usize,
     haystacks: [&'a str; L],
-    idxs: [usize; L],
+    idxs: [u32; L],
     _phantom: PhantomData<N>,
 }
 
@@ -42,7 +42,7 @@ where
     pub fn add_haystack(
         &mut self,
         haystack: &'a str,
-        idx: usize,
+        idx: u32,
         buckets: &mut Vec<Box<dyn IncrementalBucketTrait>>,
     ) {
         self.haystacks[self.length] = haystack;

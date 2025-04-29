@@ -5,7 +5,7 @@ use std::simd::{Mask, Simd};
 use super::{SimdMask, SimdNum, SimdVec};
 
 #[inline]
-pub fn char_indices_from_scores<N, const W: usize, const L: usize>(
+pub fn char_indices_from_score_matrix<N, const W: usize, const L: usize>(
     score_matrices: &[[Simd<N, L>; W]],
 ) -> Vec<Vec<usize>>
 where
@@ -113,7 +113,7 @@ mod tests {
     fn run_single_indices(needle: &str, haystack: &str) -> Vec<usize> {
         let haystacks = [haystack; 1];
         let (_, score_matrices, _) = smith_waterman::<u16, 16, 1>(needle, &haystacks, None);
-        let indices = char_indices_from_scores(&score_matrices);
+        let indices = char_indices_from_score_matrix(&score_matrices);
         indices[0].clone()
     }
 
@@ -140,7 +140,7 @@ mod tests {
         ];
 
         let (_, score_matrices, _) = smith_waterman::<u16, 16, 16>(needle, &haystacks, None);
-        let indices = char_indices_from_scores(&score_matrices);
+        let indices = char_indices_from_score_matrix(&score_matrices);
         for indices in indices.into_iter() {
             assert_eq!(indices, [0])
         }
