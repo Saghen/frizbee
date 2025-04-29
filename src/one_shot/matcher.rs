@@ -1,6 +1,7 @@
 use super::bucket::FixedWidthBucket;
 use super::Appendable;
 
+use crate::one_shot::match_too_large;
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Match, Options};
@@ -24,12 +25,12 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     match_list_impl(needle, haystacks, 0, opts, &mut matches);
 
     if opts.sort {
-        #[cfg(feature = "rayon")]
+        #[cfg(feature = "parallel_sort")]
         {
             use rayon::prelude::*;
             matches.par_sort();
         }
-        #[cfg(not(feature = "rayon"))]
+        #[cfg(not(feature = "parallel_sort"))]
         matches.sort_unstable();
     }
 
@@ -89,11 +90,6 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
         .map(|max| needle.len() - (max as usize))
         .unwrap_or(0);
 
-    // limit the maximum size of the matrix to 64kB since smith waterman scales O(nm)
-    // where n is the length of the needle and m is the length of the haystack
-    let max_matrix_bytes = 64 * 1024;
-    let max_haystack_len = max_matrix_bytes / needle.len() / 2; // divide by 2 since we use u16
-
     for (i, haystack) in haystacks.iter().enumerate() {
         let i = i as u32 + index_offset;
         let haystack = haystack.as_ref();
@@ -101,7 +97,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
             continue;
         }
         // fallback to greedy matching
-        if haystack.len() > max_haystack_len {
+        if match_too_large(needle, haystack) {
             let (score, _) = match_greedy(needle, haystack);
             matches.append(Match {
                 index_in_haystack: i,

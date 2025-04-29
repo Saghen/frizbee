@@ -1,43 +1,45 @@
-#![allow(dead_code)]
-
 use crate::r#const::*;
 
-pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16) {
-    assert!(haystack.len() <= W);
-
+pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
     let needle = needle.as_bytes();
     let haystack = haystack.as_bytes();
 
     // State
-    let mut score_matrix = vec![[0; W]; needle.len()];
+    let mut score_matrix = vec![vec![0; haystack.len()]; needle.len()];
     let mut all_time_max_score = 0;
 
     for i in 0..needle.len() {
-        let prev_col_scores = if i > 0 { score_matrix[i - 1] } else { [0; W] };
-        let curr_col_scores = &mut score_matrix[i];
+        let (prev_col_scores, curr_col_scores) = if i > 0 {
+            let (prev_col_scores_slice, curr_col_scores_slice) = score_matrix.split_at_mut(i);
+            (&prev_col_scores_slice[i - 1], &mut curr_col_scores_slice[0])
+        } else {
+            (&vec![0; haystack.len()], &mut score_matrix[i])
+        };
 
         let mut up_score_simd: u16 = 0;
         let mut up_gap_penalty_mask = true;
 
         let needle_char = needle[i];
-        let needle_cased_mask = needle_char.is_ascii_uppercase();
+        let needle_is_uppercase = needle_char.is_ascii_uppercase();
         let needle_char = needle_char.to_ascii_lowercase();
 
         let mut left_gap_penalty_mask = true;
-        let mut delimiter_bonus_enabled_mask = false;
-        let mut prev_is_delimiter_mask = false;
+        let mut delimiter_bonus_enabled = false;
+        let mut prev_haystack_is_delimiter = false;
+        let mut prev_haystack_is_lowercase = false;
 
         for j in 0..haystack.len() {
             let is_prefix = j == 0;
 
             // Load chunk and remove casing
-            let cased_haystack_simd = haystack[j];
-            let capital_mask = cased_haystack_simd.is_ascii_uppercase();
-            let haystack_simd = cased_haystack_simd.to_ascii_lowercase();
+            let haystack_char = haystack[j];
+            let haystack_is_uppercase = haystack_char.is_ascii_uppercase();
+            let haystack_is_lowercase = haystack_char.is_ascii_lowercase();
+            let haystack_char = haystack_char.to_ascii_lowercase();
 
-            let is_delimiter_mask =
-                [b' ', b'/', b'.', b',', b'_', b'-', b':'].contains(&haystack_simd);
-            let matched_casing_mask = needle_cased_mask == capital_mask;
+            let haystack_is_delimiter =
+                [b' ', b'/', b'.', b',', b'_', b'-', b':'].contains(&haystack_char);
+            let matched_casing_mask = needle_is_uppercase == haystack_is_uppercase;
 
             // Give a bonus for prefix matches
             let match_score = if is_prefix {
@@ -48,12 +50,12 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16
 
             // Calculate diagonal (match/mismatch) scores
             let diag = if is_prefix { 0 } else { prev_col_scores[j - 1] };
-            let match_mask = needle_char == haystack_simd;
-            let diag_score = if match_mask {
+            let is_match = needle_char == haystack_char;
+            let diag_score = if is_match {
                 diag + match_score
-                    + if prev_is_delimiter_mask && delimiter_bonus_enabled_mask && !is_delimiter_mask { DELIMITER_BONUS } else { 0 }
+                    + if prev_haystack_is_delimiter && delimiter_bonus_enabled && !haystack_is_delimiter { DELIMITER_BONUS } else { 0 }
                     // ignore capitalization on the prefix
-                    + if !is_prefix && capital_mask { CAPITALIZATION_BONUS } else { 0 }
+                    + if !is_prefix && haystack_is_uppercase && prev_haystack_is_lowercase { CAPITALIZATION_BONUS } else { 0 }
                     + if matched_casing_mask { MATCHING_CASE_BONUS } else { 0 }
             } else {
                 diag.saturating_sub(MISMATCH_PENALTY)
@@ -84,10 +86,11 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16
             up_gap_penalty_mask = max_score != up_score || diag_mask;
             left_gap_penalty_mask = max_score != left_score || diag_mask;
 
-            // Update delimiter mask
-            prev_is_delimiter_mask = is_delimiter_mask;
+            // Update haystack char masks
+            prev_haystack_is_lowercase = haystack_is_lowercase;
+            prev_haystack_is_delimiter = haystack_is_delimiter;
             // Only enable delimiter bonus if we've seen a non-delimiter char
-            delimiter_bonus_enabled_mask |= !prev_is_delimiter_mask;
+            delimiter_bonus_enabled |= !prev_haystack_is_delimiter;
 
             // Store the scores for the next iterations
             up_score_simd = max_score;
@@ -104,70 +107,7 @@ pub fn smith_waterman<const W: usize>(needle: &str, haystack: &str) -> (u16, u16
         all_time_max_score
     };
 
-    (max_score, typos_from_score_matrix(score_matrix))
-}
-
-pub fn typos_from_score_matrix<const W: usize>(score_matrix: Vec<[u16; W]>) -> u16 {
-    let mut typo_count = 0;
-    let mut score = 0;
-    let mut positions = 0;
-
-    // Get the starting position by looking at the last column
-    // (last character of the needle)
-    let last_column = score_matrix.last().unwrap();
-    for (idx, &row_score) in last_column.iter().enumerate() {
-        if row_score > score {
-            score = row_score;
-            positions = idx;
-        }
-    }
-
-    // Traceback and store the matched indices
-    // for (idx, &row_idx) in positions.to_array().iter().enumerate() {
-    let mut col_idx = score_matrix.len() - 1;
-    let mut row_idx: usize = positions;
-
-    // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
-    while col_idx > 0 {
-        // Must be moving left
-        if row_idx == 0 {
-            typo_count += 1;
-            col_idx -= 1;
-            continue;
-        }
-
-        // Gather up the scores for all possible paths
-        let diag = score_matrix[col_idx - 1][row_idx - 1];
-        let left = score_matrix[col_idx - 1][row_idx];
-        let up = score_matrix[col_idx][row_idx - 1];
-
-        // Match or mismatch
-        if diag >= left && diag >= up {
-            // Must be a mismatch
-            if diag >= score {
-                typo_count += 1;
-            }
-            row_idx -= 1;
-            col_idx -= 1;
-            score = diag;
-        // Skipped character in needle
-        } else if left >= up {
-            typo_count += 1;
-            col_idx -= 1;
-            score = left;
-        // Skipped character in haystack
-        } else {
-            row_idx -= 1;
-            score = up;
-        }
-    }
-
-    // HACK: Compensate for the last column being a typo
-    if col_idx == 0 && score == 0 {
-        typo_count += 1;
-    }
-
-    typo_count
+    (max_score, score_matrix)
 }
 
 #[cfg(test)]
@@ -177,35 +117,13 @@ mod tests {
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<16>(needle, haystack).0
-    }
-
-    fn get_typos(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<4>(needle, haystack).1
+        smith_waterman(needle, haystack).0
     }
 
     #[test]
     fn test_score_basic() {
         assert_eq!(get_score("b", "abc"), CHAR_SCORE);
         assert_eq!(get_score("c", "abc"), CHAR_SCORE);
-    }
-
-    #[test]
-    fn test_typos_basic() {
-        assert_eq!(get_typos("a", "abc"), 0);
-        assert_eq!(get_typos("b", "abc"), 0);
-        assert_eq!(get_typos("c", "abc"), 0);
-        assert_eq!(get_typos("ac", "abc"), 0);
-
-        assert_eq!(get_typos("d", "abc"), 1);
-        assert_eq!(get_typos("da", "abc"), 1);
-        assert_eq!(get_typos("dc", "abc"), 1);
-        assert_eq!(get_typos("ad", "abc"), 1);
-        assert_eq!(get_typos("adc", "abc"), 1);
-        assert_eq!(get_typos("add", "abc"), 2);
-        assert_eq!(get_typos("ddd", "abc"), 3);
-        assert_eq!(get_typos("ddd", ""), 3);
-        assert_eq!(get_typos("d", ""), 1);
     }
 
     #[test]
@@ -231,6 +149,7 @@ mod tests {
 
     #[test]
     fn test_score_delimiter() {
+        assert_eq!(get_score("-", "a--bc"), CHAR_SCORE);
         assert_eq!(get_score("b", "a-b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
@@ -262,11 +181,13 @@ mod tests {
         assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("D", "forDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
-        assert_eq!(get_score("D", "foRDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
+        assert_eq!(get_score("D", "foRDist"), CHAR_SCORE);
+        assert_eq!(get_score("D", "FOR_DIST"), CHAR_SCORE + DELIMITER_BONUS);
     }
 
     #[test]
     fn test_score_prefix_beats_delimiter() {
-        assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"),);
+        assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"));
+        assert!(get_score("_", "_private_member") > get_score("_", "public_member"));
     }
 }

@@ -14,7 +14,7 @@ pub mod prefilter;
 pub mod smith_waterman;
 
 pub use incremental::IncrementalMatcher;
-pub use one_shot::{match_list, match_list_parallel};
+pub use one_shot::{match_indices, match_list, match_list_parallel};
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -44,6 +44,14 @@ impl PartialEq for Match {
     }
 }
 impl Eq for Match {}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MatchIndices {
+    pub score: u16,
+    pub indices: Vec<usize>,
+    pub exact: bool,
+}
 
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

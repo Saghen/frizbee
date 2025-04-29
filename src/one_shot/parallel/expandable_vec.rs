@@ -11,11 +11,11 @@ use crate::one_shot::Appendable;
 
 thread_local!(static THREAD_IDX: RefCell<Option<usize>> = const { RefCell::new(None) });
 
-/// Thread-safe append-only expandable queue for parallel matching in cases where there won't be
-/// too many writes and the number of elements cannot be known ahead of time. !!! Only one of these
-/// can exist at a time per thread !!!
+/// Thread-safe append-only expandable vec for parallel matching in cases where there won't be
+/// too many writes and the number of elements cannot be known ahead of time.
+/// !!! Only one of these can exist at a time per thread !!!
 #[derive(Debug)]
-pub struct ExpandableBatchedVec<T> {
+pub(crate) struct ExpandableBatchedVec<T> {
     data: Mutex<Vec<T>>,
     thread_batches: Vec<ThreadBatch<T>>,
     thread_idx: AtomicUsize,
@@ -50,7 +50,7 @@ impl<T> ExpandableBatchedVec<T> {
                         let current_thread_idx = self.thread_idx.load(Ordering::Relaxed);
                         assert!(
                             current_thread_idx < self.thread_count,
-                            "Too many threads attempting to use batched queue"
+                            "too many threads attempting to use expandable batched vec"
                         );
 
                         match self.thread_idx.compare_exchange(

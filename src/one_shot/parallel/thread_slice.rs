@@ -1,7 +1,7 @@
 use crate::one_shot::Appendable;
 
 #[derive(Debug)]
-pub struct ThreadSlice<T> {
+pub(crate) struct ThreadSlice<T> {
     pub slice: *mut T,
     pub pos: usize,
 }

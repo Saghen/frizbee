@@ -33,12 +33,12 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     };
 
     if opts.sort {
-        #[cfg(feature = "rayon")]
+        #[cfg(feature = "parallel_sort")]
         {
             use rayon::prelude::*;
             matches.par_sort();
         }
-        #[cfg(not(feature = "rayon"))]
+        #[cfg(not(feature = "parallel_sort"))]
         matches.sort_unstable();
     }
 

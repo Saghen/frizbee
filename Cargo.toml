@@ -29,6 +29,6 @@ rayon = { version = "1.10.0", optional = true }
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [features]
-default = ["rayon"]
+default = ["parallel_sort"]
 serde = ["dep:serde"]
-rayon = ["dep:rayon"]
+parallel_sort = ["dep:rayon"]
