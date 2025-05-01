@@ -36,7 +36,7 @@ In each of the benchmarks, the median length of the haystacks is varied from 8 t
 - **Nucleo**: Runs with normalization disabled, case insentivity enabled and fuzzy matching enabled
 - **\$BENCH (Parallel)**: Same as $BENCH, but uses 8 threads to perform the matching in parallel
 
-NOTE: The nucleo parallel benchmark is not included since I haven't discovered a way to wait ensure the matcher has finished running at the moment.
+NOTE: The nucleo parallel benchmark is not included since I haven't discovered a way to ensure the matcher has finished running.
 
 ## Benchmark Results
 
