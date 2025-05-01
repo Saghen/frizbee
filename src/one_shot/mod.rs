@@ -20,6 +20,6 @@ impl<T> Appendable<T> for Vec<T> {
 const MAX_MATRIX_BYTES: usize = 32 * 1024; // 32 KB
 #[inline(always)]
 pub(crate) fn match_too_large(needle: &str, haystack: &str) -> bool {
-    let max_haystack_len = MAX_MATRIX_BYTES / needle.len() / 2; // divide by 2 since we use u16
+    let max_haystack_len = MAX_MATRIX_BYTES / needle.len().max(1) / 2; // divide by 2 since we use u16
     haystack.len() > max_haystack_len
 }

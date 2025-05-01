@@ -1,6 +1,10 @@
 use std::collections::HashSet;
 
 pub fn char_indices_from_score_matrix(score_matrix: &[&[u16]]) -> Vec<usize> {
+    if score_matrix.is_empty() {
+        return vec![];
+    }
+
     // Find the maximum score row/col
     let mut max_score_position = (0, 0);
     let mut max_score = 0;
@@ -90,6 +94,7 @@ mod tests {
 
     #[test]
     fn test_basic_indices() {
+        assert_eq!(run_single_indices("", "abc"), vec![]);
         assert_eq!(run_single_indices("b", "abc"), vec![1]);
         assert_eq!(run_single_indices("c", "abc"), vec![2]);
     }
