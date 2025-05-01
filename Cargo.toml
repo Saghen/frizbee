@@ -4,6 +4,7 @@ description = "Fast fuzzy matching via SIMD smith waterman, similar algorithm to
 license = "MIT"
 version = "0.4.1"
 edition = "2021"
+repository = "https://github.com/saghen/frizbee"
 
 [profile.release]
 lto = true
