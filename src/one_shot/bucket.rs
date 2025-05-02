@@ -31,9 +31,17 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize> {
 impl<'a, const W: usize> FixedWidthBucket<'a, W> {
     pub fn new(needle: &'a str, needle_bitmask: u64, opts: &Options) -> Self {
         FixedWidthBucket {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             has_avx512: is_x86_feature_detected!("avx512f")
                 && is_x86_feature_detected!("avx512bitalg"),
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             has_avx2: is_x86_feature_detected!("avx2"),
+
+            #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+            has_avx512: false,
+            #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+            has_avx2: false,
+
             length: 0,
             needle,
             needle_bitmask,
@@ -87,7 +95,9 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         self.length += 1;
 
         match self.length {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             32 if self.has_avx512 => unsafe { self.finalize_512(matches) },
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             16 if self.has_avx2 && !self.has_avx512 => unsafe { self.finalize_256(matches) },
             8 if !self.has_avx2 && !self.has_avx512 => self.finalize_128(matches),
             _ => {}
@@ -96,17 +106,21 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
 
     pub fn finalize(&mut self, matches: &mut dyn Appendable<Match>) {
         match self.length {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             9.. if self.has_avx2 => unsafe { self.finalize_256(matches) },
             0.. => self.finalize_128(matches),
         }
     }
 
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx512f", enable = "avx512bitalg")]
     unsafe fn finalize_512(&mut self, matches: &mut dyn Appendable<Match>) {
         self._finalize::<u16, 32>(matches);
     }
 
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2")]
     unsafe fn finalize_256(&mut self, matches: &mut dyn Appendable<Match>) {
         self._finalize::<u16, 16>(matches);
