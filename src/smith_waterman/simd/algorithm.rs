@@ -249,4 +249,19 @@ mod tests {
         assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"));
         assert!(get_score("_", "_private_member") > get_score("_", "public_member"));
     }
+
+    #[test]
+    fn test_score_prefix_beats_capitalization() {
+        assert!(get_score("H", "HELLO") > get_score("H", "fooHello"));
+    }
+
+    #[test]
+    fn test_score_continuous_beats_delimiter() {
+        assert!(get_score("foo", "fooo") > get_score("foo", "f_o_o_o"));
+    }
+
+    #[test]
+    fn test_score_continuous_beats_capitalization() {
+        assert!(get_score("fo", "foo") > get_score("fo", "faOo"));
+    }
 }
