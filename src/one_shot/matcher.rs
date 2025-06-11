@@ -80,8 +80,6 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
     let mut bucket_size_256 = FixedWidthBucket::<256>::new(needle, needle_bitmask, &opts);
     let mut bucket_size_384 = FixedWidthBucket::<384>::new(needle, needle_bitmask, &opts);
     let mut bucket_size_512 = FixedWidthBucket::<512>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_768 = FixedWidthBucket::<768>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_1024 = FixedWidthBucket::<1024>::new(needle, needle_bitmask, &opts);
 
     // If max_typos is set, we can ignore any haystacks that are shorter than the needle
     // minus the max typos, since it's impossible for them to match
@@ -126,8 +124,6 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
             225..=256 => bucket_size_256.add_haystack(matches, haystack, i),
             257..=384 => bucket_size_384.add_haystack(matches, haystack, i),
             385..=512 => bucket_size_512.add_haystack(matches, haystack, i),
-            513..=768 => bucket_size_768.add_haystack(matches, haystack, i),
-            769..=1024 => bucket_size_1024.add_haystack(matches, haystack, i),
 
             // fallback to greedy matching
             _ => {
@@ -160,8 +156,6 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
     bucket_size_256.finalize(matches);
     bucket_size_384.finalize(matches);
     bucket_size_512.finalize(matches);
-    bucket_size_768.finalize(matches);
-    bucket_size_1024.finalize(matches);
 }
 
 #[cfg(test)]

@@ -34,8 +34,6 @@ impl IncrementalMatcher {
         let mut collection_size_256 = IncrementalBucketCollection::<'_, u16, 256, 8>::new();
         let mut collection_size_384 = IncrementalBucketCollection::<'_, u16, 384, 8>::new();
         let mut collection_size_512 = IncrementalBucketCollection::<'_, u16, 512, 8>::new();
-        let mut collection_size_768 = IncrementalBucketCollection::<'_, u16, 768, 8>::new();
-        let mut collection_size_1024 = IncrementalBucketCollection::<'_, u16, 1024, 8>::new();
 
         for (i, haystack) in haystacks.iter().enumerate() {
             let i = i as u32;
@@ -58,8 +56,6 @@ impl IncrementalMatcher {
                 225..=256 => collection_size_256.add_haystack(haystack, i, &mut buckets),
                 257..=384 => collection_size_384.add_haystack(haystack, i, &mut buckets),
                 385..=512 => collection_size_512.add_haystack(haystack, i, &mut buckets),
-                513..=768 => collection_size_768.add_haystack(haystack, i, &mut buckets),
-                769..=1024 => collection_size_1024.add_haystack(haystack, i, &mut buckets),
                 // TODO: should return score = 0 or fallback to prefilter
                 _ => continue,
             };
@@ -82,8 +78,6 @@ impl IncrementalMatcher {
         collection_size_256.finalize(&mut buckets);
         collection_size_384.finalize(&mut buckets);
         collection_size_512.finalize(&mut buckets);
-        collection_size_768.finalize(&mut buckets);
-        collection_size_1024.finalize(&mut buckets);
 
         Self {
             needle: None,
