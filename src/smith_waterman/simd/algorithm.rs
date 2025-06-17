@@ -126,7 +126,11 @@ where
         // When matching "foo" against "foobar" with max_typos = 0, we can avoid matching "f"
         // againt "a" and "r" since it's impossible for this to be a valid match
         let haystack_end = max_typos
-            .map(|max_typos| (W - needle.len() + needle_idx + (max_typos as usize)).min(W))
+            .map(|max_typos| {
+                (W + needle_idx + (max_typos as usize))
+                    .saturating_sub(needle.len())
+                    .min(W)
+            })
             .unwrap_or(W);
         (needle_idx, haystack_start, haystack_end)
     }) {
