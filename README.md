@@ -25,7 +25,7 @@ The core of the algorithm is Smith-Waterman with affine gaps and inter-sequence 
 - Supports insertion, deletion and substitution
 - Does not support transposition (i.e. swapping two adjacent characters)
 
-Due to the inter-sequence parallelism, the algorithm performs best when all the haystacks are the same length (i.e. length 8) for the given SIMD width (i.e. 16 for 256 bit SIMD with u16 scores), see the [implementation](#implementation) section for more details.
+Due to the inter-sequence parallelism, the algorithm groups items by length into buckets (8, 12, 16, ...). Then it processes 8, 16 or 32 (based on SIMD width) items from each bucket at a time. As a result, it's best to match on long lists, as the overhead ends up practically disappearing. See the [implementation](#implementation) section for more details.
 
 The SIMD width will be chosen at runtime based on available instruction set extensions. Currently, only x86_64's AVX2 (256-bit) and AVX512 (512-bit) will be detected at runtime, falling back to 128-bit SIMD if neither is available.
 
@@ -48,7 +48,7 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
     - **Memchr:** if `haystack.len() >= 24 && max_typos < 2`, uses the `memchr` crate to ensure the haystack contains the entire needle with a tolerance of `max_typos` missing
     - if neither of the above apply, no prefiltering will be applied
 2. **Bucketing**: Group the haystacks by length into buckets of various haystack lengths (`4`, `8`, `12`, ...) until the bucket reaches `$LANES` items, where `$LANES` is the number of available SIMD lanes
-    - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `1024`), fallback to a greedy matcher. As a result, it's possible for some items to not appear in the final list, even when `max_typos = None`
+    - If the item would cause excessive memory usage, or we don't have a bucket big enough for the haystack (currently max bucket size is `512`), fallback to a greedy matcher
 3. **Smith Waterman Forward Pass**: When a bucket is full, perform SIMD smith waterman on `$LANES` items at a time
 4. **Smith Waterman Backward Pass**: If `max_typos != None` and we didn't use the `memchr` prefilter method, perform a backward (alignment) pass to find the number of typos in the haystack
     - If `opts.matched_indices = true`, perform a second backward pass to find the indices of the matches
