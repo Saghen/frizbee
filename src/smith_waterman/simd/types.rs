@@ -46,6 +46,7 @@ where
     const MATCH_SCORE: Simd<Self, L>;
     const MISMATCH_PENALTY: Simd<Self, L>;
     const PREFIX_MATCH_SCORE: Simd<Self, L>;
+    const OFFSET_PREFIX_MATCH_SCORE: Simd<Self, L>;
 
     fn from_usize(n: usize) -> Self;
 }
@@ -107,6 +108,7 @@ macro_rules! simd_num_impl {
                 const MATCH_SCORE: Simd<Self, $lanes> = Simd::from_array([MATCH_SCORE as $type; $lanes]);
                 const MISMATCH_PENALTY: Simd<Self, $lanes> = Simd::from_array([MISMATCH_PENALTY as $type; $lanes]);
                 const PREFIX_MATCH_SCORE: Simd<Self, $lanes> = Simd::from_array([(MATCH_SCORE + PREFIX_BONUS) as $type; $lanes]);
+                const OFFSET_PREFIX_MATCH_SCORE: Simd<Self, $lanes> = Simd::from_array([(MATCH_SCORE + OFFSET_PREFIX_BONUS) as $type; $lanes]);
 
                 #[inline(always)]
                 fn from_usize(n: usize) -> Self {

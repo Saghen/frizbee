@@ -41,29 +41,44 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
         let matched_casing_mask: Mask<N::Mask, L> = needle_char
             .is_capital_mask
             .simd_eq(haystack_char.is_capital_mask);
+
+        let match_score = if haystack_idx > 0 {
+            let match_score = {
+                let prev_haystack_char = haystack[haystack_idx - 1];
+
+                // ignore capitalization on the prefix
+                let capitalization_bonus_mask: Mask<N::Mask, L> =
+                    haystack_char.is_capital_mask & prev_haystack_char.is_lower_mask;
+                let capitalization_bonus =
+                    capitalization_bonus_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
+
+                let delimiter_bonus_mask: Mask<N::Mask, L> = prev_haystack_char.is_delimiter_mask
+                    & delimiter_bonus_enabled_mask
+                    & !haystack_char.is_delimiter_mask;
+                let delimiter_bonus = delimiter_bonus_mask.select(N::DELIMITER_BONUS, N::ZERO_VEC);
+
+                capitalization_bonus + delimiter_bonus + N::MATCH_SCORE
+            };
+
+            if haystack_idx == 1 {
+                // If the first char is not a letter, apply the prefix bonus on the second char
+                // if we didn't match on the first char
+                // I.e. `a` matching on `-a` would still get the prefix bonus
+                // but  `b` matching on `ab` would not get the prefix bonus
+                let offset_prefix_mask = !(haystack[0].is_lower_mask | haystack[0].is_capital_mask)
+                    & diag.simd_eq(N::ZERO_VEC);
+
+                offset_prefix_mask.select(N::OFFSET_PREFIX_MATCH_SCORE, match_score)
+            } else {
+                match_score
+            }
+        } else {
+            // Give a bonus for prefix matches
+            N::PREFIX_MATCH_SCORE
+        };
+
         let diag_score: Simd<N, L> = match_mask.select(
-            diag + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC)
-                + if haystack_idx > 0 {
-                    let prev_haystack_char = haystack[haystack_idx - 1];
-
-                    // ignore capitalization on the prefix
-                    let capitalization_bonus_mask: Mask<N::Mask, L> =
-                        haystack_char.is_capital_mask & prev_haystack_char.is_lower_mask;
-                    let capitalization_bonus =
-                        capitalization_bonus_mask.select(N::CAPITALIZATION_BONUS, N::ZERO_VEC);
-
-                    let delimiter_bonus_mask: Mask<N::Mask, L> = prev_haystack_char
-                        .is_delimiter_mask
-                        & delimiter_bonus_enabled_mask
-                        & !haystack_char.is_delimiter_mask;
-                    let delimiter_bonus =
-                        delimiter_bonus_mask.select(N::DELIMITER_BONUS, N::ZERO_VEC);
-
-                    capitalization_bonus + delimiter_bonus + N::MATCH_SCORE
-                } else {
-                    // Give a bonus for prefix matches
-                    N::PREFIX_MATCH_SCORE
-                },
+            diag + matched_casing_mask.select(N::MATCHING_CASE_BONUS, N::ZERO_VEC) + match_score,
             diag.saturating_sub(N::MISMATCH_PENALTY),
         );
 
@@ -90,8 +105,6 @@ pub(crate) fn smith_waterman_inner<N, const L: usize>(
         // Store the scores for the next iterations
         up_score_simd = max_score;
         curr_score_col[haystack_idx] = max_score;
-
-        // Store the maximum score across all runs
     }
 }
 
@@ -197,6 +210,15 @@ mod tests {
     }
 
     #[test]
+    fn test_score_offset_prefix() {
+        // Give prefix bonus on second char if the first char isn't a letter
+        assert_eq!(get_score("a", "-a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
+        assert_eq!(get_score("-a", "-ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "'a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
+        assert_eq!(get_score("a", "Ba"), CHAR_SCORE);
+    }
+
+    #[test]
     fn test_score_exact_match() {
         assert_eq!(
             get_score("a", "a"),
@@ -207,7 +229,7 @@ mod tests {
             3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
-        // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]
@@ -217,7 +239,7 @@ mod tests {
         assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
-        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
     }
 
     #[test]

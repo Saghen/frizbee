@@ -164,6 +164,15 @@ mod tests {
     }
 
     #[test]
+    fn test_score_offset_prefix() {
+        // Give prefix bonus on second char if the first char isn't a letter
+        assert_eq!(get_score("a", "-a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
+        assert_eq!(get_score("-a", "-ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "'a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
+        assert_eq!(get_score("a", "Ba"), CHAR_SCORE);
+    }
+
+    #[test]
     #[ignore = "Incremental matcher doesn't support exact matches until we implement them in SIMD"]
     fn test_score_exact_match() {
         assert_eq!(
@@ -184,7 +193,7 @@ mod tests {
         assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
-        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
     }
 
     #[test]
