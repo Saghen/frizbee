@@ -1,5 +1,6 @@
-#![feature(portable_simd)]
+#![allow(stable_features)]
 #![feature(avx512_target_feature)]
+#![feature(portable_simd)]
 #![feature(get_mut_unchecked)]
 
 use std::cmp::Ordering;
