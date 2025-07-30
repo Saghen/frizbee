@@ -14,7 +14,6 @@ pub(crate) trait IncrementalBucketTrait {
         prefix_to_keep: usize,
         new_needle_chars: &[u8],
         matches: &mut Vec<Match>,
-        min_score: u16,
         max_typos: Option<u16>,
     );
 }
@@ -60,7 +59,6 @@ where
         prefix_to_keep: usize,
         new_needle_chars: &[u8],
         matches: &mut Vec<Match>,
-        min_score: u16,
         max_typos: Option<u16>,
     ) {
         let new_needle_chars = new_needle_chars
@@ -122,11 +120,6 @@ where
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
-            let score = scores[idx];
-            if score < min_score {
-                continue;
-            }
-
             if let Some(max_typos) = max_typos {
                 if typos.is_some_and(|typos| typos[idx] > max_typos) {
                     continue;

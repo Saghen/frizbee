@@ -31,10 +31,6 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(
 
     // Get score matrix
     let (score, score_matrix) = smith_waterman(needle, haystack);
-    if score < opts.min_score {
-        return None;
-    }
-
     let score_matrix_ref = score_matrix
         .iter()
         .map(|v| v.as_slice())

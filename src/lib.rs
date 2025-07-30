@@ -60,9 +60,6 @@ pub struct Options {
     /// May perform prefiltering, depending on haystack length and max number of typos,
     /// which drastically improves performance when most of the haystack does not match
     pub prefilter: bool,
-    /// Minimum score of an item to return a result. Generally, needle.len() * 6 will be a good
-    /// default
-    pub min_score: u16,
     /// The maximum number of characters missing from the needle, before an item in the
     /// haystack is filtered out
     pub max_typos: Option<u16>,
@@ -74,7 +71,6 @@ impl Default for Options {
     fn default() -> Self {
         Options {
             prefilter: true,
-            min_score: 0,
             max_typos: Some(0),
             sort: true,
         }

@@ -23,7 +23,6 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     needle_bitmask: u64,
     haystacks: [&'a str; 32],
     idxs: [u32; 32],
-    min_score: u16,
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
 }
@@ -47,7 +46,6 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
             needle_bitmask,
             haystacks: [""; 32],
             idxs: [0; 32],
-            min_score: opts.min_score,
             max_typos: opts.max_typos,
             prefilter: match (opts.prefilter, opts.max_typos) {
                 (true, Some(0)) if W >= 24 => PrefilterMethod::Memchr,
@@ -153,11 +151,6 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
-            let score = scores[idx];
-            if score < self.min_score {
-                continue;
-            }
-
             // Memchr guarantees the number of typos is <= max_typos so no need to check
             if !matches!(self.prefilter, PrefilterMethod::Memchr) {
                 if let Some(max_typos) = self.max_typos {

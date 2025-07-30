@@ -127,13 +127,7 @@ impl IncrementalMatcher {
         let needle = &needle.as_bytes()[prefix_to_keep..];
 
         for bucket in self.buckets.iter_mut() {
-            bucket.process(
-                prefix_to_keep,
-                needle,
-                matches,
-                opts.min_score,
-                opts.max_typos,
-            );
+            bucket.process(prefix_to_keep, needle, matches, opts.max_typos);
         }
     }
 }
