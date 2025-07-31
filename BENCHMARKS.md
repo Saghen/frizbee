@@ -26,6 +26,8 @@ ssl: OpenSSL 3.4.1 11 Feb 2025
 os: NixOS 25.5.0 [64-bit]
 ```
 
+The bench compiles with `-C target-cpu=x86-64-v3` which supports the last 10 years of CPUs. `x86-64-v2` performs roughly the same (~2% slower). Ideally, we'd see the same performance using `x86-64` but this requires more work in runtime instruction detection.
+
 ## Explanation
 
 In each of the benchmarks, the median length of the haystacks is varied from 8 to 128.
@@ -55,10 +57,10 @@ num_samples: 100000
 
 |           | `Frizbee`                | `Nucleo`                        | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`             | `Frizbee: All Scores (Parallel)`           |
 |:----------|:-------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:---------------------------------|:------------------------------------------ |
-| **`16`**  | `2.23 ms` (✅ **1.00x**)  | `3.62 ms` (❌ *1.62x slower*)    | `5.30 ms` (❌ *2.37x slower*)    | `3.89 ms` (❌ *1.74x slower*)    | `457.09 us` (🚀 **4.88x faster**) | `1.22 ms` (🚀 **1.84x faster**)             |
-| **`32`**  | `3.73 ms` (✅ **1.00x**)  | `5.63 ms` (❌ *1.51x slower*)    | `9.32 ms` (❌ *2.50x slower*)    | `5.73 ms` (❌ *1.54x slower*)    | `647.59 us` (🚀 **5.76x faster**) | `1.73 ms` (🚀 **2.16x faster**)             |
-| **`64`**  | `5.34 ms` (✅ **1.00x**)  | `8.51 ms` (❌ *1.59x slower*)    | `17.04 ms` (❌ *3.19x slower*)   | `8.22 ms` (❌ *1.54x slower*)    | `898.02 us` (🚀 **5.95x faster**) | `2.79 ms` (🚀 **1.92x faster**)             |
-| **`128`** | `11.43 ms` (✅ **1.00x**) | `24.74 ms` (❌ *2.16x slower*)   | `31.00 ms` (❌ *2.71x slower*)   | `18.92 ms` (❌ *1.65x slower*)   | `1.92 ms` (🚀 **5.94x faster**)   | `4.67 ms` (🚀 **2.45x faster**)             |
+| **`16`**  | `1.75 ms` (✅ **1.00x**)  | `3.31 ms` (❌ *1.89x slower*)    | `5.52 ms` (❌ *3.16x slower*)    | `3.02 ms` (❌ *1.73x slower*)    | `329.42 us` (🚀 **5.31x faster**) | `1.28 ms` (✅ **1.36x faster**)             |
+| **`32`**  | `3.16 ms` (✅ **1.00x**)  | `5.04 ms` (❌ *1.59x slower*)    | `11.01 ms` (❌ *3.48x slower*)   | `5.04 ms` (❌ *1.59x slower*)    | `601.72 us` (🚀 **5.26x faster**) | `2.01 ms` (✅ **1.57x faster**)             |
+| **`64`**  | `4.88 ms` (✅ **1.00x**)  | `8.11 ms` (❌ *1.66x slower*)    | `19.57 ms` (❌ *4.01x slower*)   | `7.60 ms` (❌ *1.56x slower*)    | `874.62 us` (🚀 **5.58x faster**) | `3.13 ms` (✅ **1.56x faster**)             |
+| **`128`** | `11.74 ms` (✅ **1.00x**) | `24.75 ms` (❌ *2.11x slower*)   | `35.68 ms` (❌ *3.04x slower*)   | `19.38 ms` (❌ *1.65x slower*)   | `1.94 ms` (🚀 **6.06x faster**)   | `5.24 ms` (🚀 **2.24x faster**)             |
 
 ### All Match
 
@@ -75,10 +77,10 @@ num_samples: 100000
 
 |           | `Frizbee`                | `Nucleo`                         | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`           | `Frizbee: All Scores (Parallel)`           |
 |:----------|:-------------------------|:---------------------------------|:--------------------------------|:--------------------------------|:-------------------------------|:------------------------------------------ |
-| **`16`**  | `8.85 ms` (✅ **1.00x**)  | `22.82 ms` (❌ *2.58x slower*)    | `4.97 ms` (✅ **1.78x faster**)  | `11.97 ms` (❌ *1.35x slower*)   | `1.77 ms` (🚀 **5.01x faster**) | `1.17 ms` (🚀 **7.57x faster**)             |
-| **`32`**  | `17.43 ms` (✅ **1.00x**) | `38.52 ms` (❌ *2.21x slower*)    | `9.01 ms` (🚀 **1.93x faster**)  | `20.31 ms` (❌ *1.17x slower*)   | `2.99 ms` (🚀 **5.83x faster**) | `1.90 ms` (🚀 **9.18x faster**)             |
-| **`64`**  | `27.49 ms` (✅ **1.00x**) | `64.16 ms` (❌ *2.33x slower*)    | `18.36 ms` (✅ **1.50x faster**) | `29.23 ms` (✅ **1.06x slower**) | `3.91 ms` (🚀 **7.03x faster**) | `2.80 ms` (🚀 **9.81x faster**)             |
-| **`128`** | `38.44 ms` (✅ **1.00x**) | `118.63 ms` (❌ *3.09x slower*)   | `30.91 ms` (✅ **1.24x faster**) | `42.34 ms` (✅ **1.10x slower**) | `5.72 ms` (🚀 **6.72x faster**) | `4.64 ms` (🚀 **8.28x faster**)             |
+| **`16`**  | `6.77 ms` (✅ **1.00x**)  | `21.92 ms` (❌ *3.24x slower*)    | `5.58 ms` (✅ **1.21x faster**)  | `11.09 ms` (❌ *1.64x slower*)   | `1.28 ms` (🚀 **5.29x faster**) | `1.30 ms` (🚀 **5.22x faster**)             |
+| **`32`**  | `16.18 ms` (✅ **1.00x**) | `38.45 ms` (❌ *2.38x slower*)    | `10.91 ms` (✅ **1.48x faster**) | `19.57 ms` (❌ *1.21x slower*)   | `2.77 ms` (🚀 **5.83x faster**) | `2.03 ms` (🚀 **7.96x faster**)             |
+| **`64`**  | `24.68 ms` (✅ **1.00x**) | `63.17 ms` (❌ *2.56x slower*)    | `19.44 ms` (✅ **1.27x faster**) | `27.92 ms` (❌ *1.13x slower*)   | `3.90 ms` (🚀 **6.32x faster**) | `3.15 ms` (🚀 **7.83x faster**)             |
+| **`128`** | `41.43 ms` (✅ **1.00x**) | `119.46 ms` (❌ *2.88x slower*)   | `35.51 ms` (✅ **1.17x faster**) | `44.76 ms` (✅ **1.08x slower**) | `5.97 ms` (🚀 **6.94x faster**) | `5.22 ms` (🚀 **7.93x faster**)             |
 
 ### No Match
 
@@ -95,10 +97,10 @@ num_samples: 100000
 
 |           | `Frizbee`               | `Nucleo`                        | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`             | `Frizbee: All Scores (Parallel)`           |
 |:----------|:------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:---------------------------------|:------------------------------------------ |
-| **`16`**  | `1.53 ms` (✅ **1.00x**) | `2.22 ms` (❌ *1.45x slower*)    | `4.96 ms` (❌ *3.24x slower*)    | `2.48 ms` (❌ *1.62x slower*)    | `277.76 us` (🚀 **5.52x faster**) | `1.18 ms` (✅ **1.30x faster**)             |
-| **`32`**  | `2.43 ms` (✅ **1.00x**) | `3.27 ms` (❌ *1.35x slower*)    | `8.95 ms` (❌ *3.68x slower*)    | `3.84 ms` (❌ *1.58x slower*)    | `389.18 us` (🚀 **6.24x faster**) | `1.73 ms` (✅ **1.40x faster**)             |
-| **`64`**  | `3.63 ms` (✅ **1.00x**) | `4.67 ms` (❌ *1.29x slower*)    | `16.90 ms` (❌ *4.65x slower*)   | `5.70 ms` (❌ *1.57x slower*)    | `574.03 us` (🚀 **6.33x faster**) | `2.85 ms` (✅ **1.28x faster**)             |
-| **`128`** | `8.62 ms` (✅ **1.00x**) | `16.26 ms` (❌ *1.89x slower*)   | `31.16 ms` (❌ *3.61x slower*)   | `15.61 ms` (❌ *1.81x slower*)   | `1.38 ms` (🚀 **6.23x faster**)   | `4.73 ms` (🚀 **1.82x faster**)             |
+| **`16`**  | `1.19 ms` (✅ **1.00x**) | `1.94 ms` (❌ *1.63x slower*)    | `5.49 ms` (❌ *4.61x slower*)    | `1.94 ms` (❌ *1.63x slower*)    | `242.04 us` (🚀 **4.92x faster**) | `1.29 ms` (✅ **1.08x slower**)             |
+| **`32`**  | `2.05 ms` (✅ **1.00x**) | `2.81 ms` (❌ *1.37x slower*)    | `10.86 ms` (❌ *5.29x slower*)   | `3.28 ms` (❌ *1.60x slower*)    | `346.97 us` (🚀 **5.92x faster**) | `2.07 ms` (✅ **1.01x slower**)             |
+| **`64`**  | `3.24 ms` (✅ **1.00x**) | `4.23 ms` (❌ *1.30x slower*)    | `19.54 ms` (❌ *6.03x slower*)   | `5.09 ms` (❌ *1.57x slower*)    | `535.61 us` (🚀 **6.05x faster**) | `3.16 ms` (✅ **1.03x faster**)             |
+| **`128`** | `8.49 ms` (✅ **1.00x**) | `15.72 ms` (❌ *1.85x slower*)   | `35.49 ms` (❌ *4.18x slower*)   | `15.85 ms` (❌ *1.87x slower*)   | `1.38 ms` (🚀 **6.18x faster**)   | `5.24 ms` (✅ **1.62x faster**)             |
 
 ---
 Made with [criterion-table](https://github.com/nu11ptr/criterion-table)
