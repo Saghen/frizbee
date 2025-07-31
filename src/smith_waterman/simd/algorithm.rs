@@ -126,8 +126,9 @@ where
     let needle_str = needle;
     let needle = needle.as_bytes();
 
-    let haystack: [HaystackChar<N, L>; W] =
-        std::array::from_fn(|i| HaystackChar::from_haystacks(haystacks, i));
+    // TODO: convert to HaystackChar in interleave_simd
+    let haystack = interleave_simd::<W, L>(*haystacks);
+    let haystack: [HaystackChar<L>; W] = std::array::from_fn(|i| HaystackChar::new(haystack[i]));
 
     // State
     let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
