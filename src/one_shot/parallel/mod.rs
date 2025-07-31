@@ -4,11 +4,11 @@ use super::match_list;
 use crate::one_shot::matcher::match_list_impl;
 use crate::{Match, Options};
 
-mod expandable_vec;
 mod thread_slice;
+mod threaded_vec;
 
-use expandable_vec::ExpandableBatchedVec;
 use thread_slice::ThreadSlice;
+use threaded_vec::ThreadedVec;
 
 /// Computes the Smith-Waterman score with affine gaps for the list of given targets with
 /// multithreading.
@@ -102,7 +102,7 @@ fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     assert!(opts.max_typos.is_some(), "max_typos must be Some");
 
     let batch_size = 1024;
-    let matches = Arc::new(ExpandableBatchedVec::new(batch_size, thread_count));
+    let matches = Arc::new(ThreadedVec::new(batch_size, thread_count));
 
     let items_per_thread = haystacks.len().div_ceil(thread_count);
     std::thread::scope(|s| {

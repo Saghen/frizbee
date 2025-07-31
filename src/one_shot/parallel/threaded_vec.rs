@@ -15,23 +15,23 @@ thread_local!(static THREAD_IDX: RefCell<Option<usize>> = const { RefCell::new(N
 /// too many writes and the number of elements cannot be known ahead of time.
 /// !!! Only one of these can exist at a time per thread !!!
 #[derive(Debug)]
-pub(crate) struct ExpandableBatchedVec<T> {
+pub(crate) struct ThreadedVec<T> {
     data: Mutex<Vec<T>>,
     thread_batches: Vec<ThreadBatch<T>>,
     thread_idx: AtomicUsize,
     thread_count: usize,
 }
 
-unsafe impl<T: Send> Send for ExpandableBatchedVec<T> {}
-unsafe impl<T: Sync> Sync for ExpandableBatchedVec<T> {}
+unsafe impl<T: Send> Send for ThreadedVec<T> {}
+unsafe impl<T: Sync> Sync for ThreadedVec<T> {}
 
-impl<T> ExpandableBatchedVec<T> {
+impl<T> ThreadedVec<T> {
     pub fn new(batch_size: usize, thread_count: usize) -> Self {
         let mut batches = Vec::with_capacity(thread_count);
         for _ in 0..thread_count {
             batches.push(ThreadBatch::new(batch_size));
         }
-        ExpandableBatchedVec {
+        ThreadedVec {
             data: Mutex::new(vec![]),
             thread_batches: batches,
             thread_idx: AtomicUsize::new(0),
@@ -121,7 +121,7 @@ impl<T> ExpandableBatchedVec<T> {
     }
 }
 
-impl<T> Appendable<T> for Arc<ExpandableBatchedVec<T>> {
+impl<T> Appendable<T> for Arc<ThreadedVec<T>> {
     fn append(&mut self, value: T) {
         unsafe { Arc::get_mut_unchecked(self).push(value) };
     }
