@@ -1,8 +1,8 @@
+use std::marker::PhantomData;
+
 use crate::prefilter::bitmask::string_to_bitmask_simd;
 use crate::prefilter::memchr;
-use crate::smith_waterman::simd::{
-    smith_waterman, typos_from_score_matrix, SimdMask, SimdNum, SimdVec,
-};
+use crate::smith_waterman::simd::{smith_waterman, typos_from_score_matrix};
 use crate::{Match, Options};
 
 use super::Appendable;
@@ -15,7 +15,7 @@ enum PrefilterMethod {
 }
 
 #[derive(Debug)]
-pub(crate) struct FixedWidthBucket<'a, const W: usize> {
+pub(crate) struct FixedWidthBucket<'a, const W: usize, M: Appendable<Match>> {
     has_avx512: bool,
     has_avx2: bool,
     length: usize,
@@ -25,9 +25,10 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize> {
     idxs: [u32; 32],
     max_typos: Option<u16>,
     prefilter: PrefilterMethod,
+    _phantom: PhantomData<M>,
 }
 
-impl<'a, const W: usize> FixedWidthBucket<'a, W> {
+impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
     pub fn new(needle: &'a str, needle_bitmask: u64, opts: &Options) -> Self {
         FixedWidthBucket {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -54,15 +55,11 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
                 (true, _) if W < 48 => PrefilterMethod::Bitmask,
                 _ => PrefilterMethod::None,
             },
+            _phantom: PhantomData,
         }
     }
 
-    pub fn add_haystack(
-        &mut self,
-        matches: &mut dyn Appendable<Match>,
-        haystack: &'a str,
-        idx: u32,
-    ) {
+    pub fn add_haystack(&mut self, matches: &mut M, haystack: &'a str, idx: u32) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
                 (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
@@ -102,7 +99,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
         }
     }
 
-    pub fn finalize(&mut self, matches: &mut dyn Appendable<Match>) {
+    pub fn finalize(&mut self, matches: &mut M) {
         match self.length {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
@@ -114,32 +111,30 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx512f", enable = "avx512bitalg")]
-    unsafe fn finalize_512(&mut self, matches: &mut dyn Appendable<Match>) {
-        self._finalize::<u16, 32>(matches);
+    unsafe fn finalize_512(&mut self, matches: &mut M) {
+        self._finalize::<32>(matches);
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2")]
-    unsafe fn finalize_256(&mut self, matches: &mut dyn Appendable<Match>) {
-        self._finalize::<u16, 16>(matches);
+    unsafe fn finalize_256(&mut self, matches: &mut M) {
+        self._finalize::<16>(matches);
     }
 
-    fn finalize_128(&mut self, matches: &mut dyn Appendable<Match>) {
-        self._finalize::<u16, 8>(matches);
+    fn finalize_128(&mut self, matches: &mut M) {
+        self._finalize::<8>(matches);
     }
 
     #[inline(always)]
-    fn _finalize<N: SimdNum<L>, const L: usize>(&mut self, matches: &mut dyn Appendable<Match>)
+    fn _finalize<const L: usize>(&mut self, matches: &mut M)
     where
         std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-        std::simd::Simd<N, L>: SimdVec<N, L>,
-        std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
     {
         if self.length == 0 {
             return;
         }
 
-        let (scores, score_matrix, exact_matches) = smith_waterman::<N, W, L>(
+        let (scores, score_matrix, exact_matches) = smith_waterman::<W, L>(
             self.needle,
             &self.haystacks.get(0..L).unwrap().try_into().unwrap(),
             self.max_typos,
@@ -147,7 +142,7 @@ impl<'a, const W: usize> FixedWidthBucket<'a, W> {
 
         let typos = self
             .max_typos
-            .map(|max_typos| typos_from_score_matrix::<N, W, L>(&score_matrix, max_typos));
+            .map(|max_typos| typos_from_score_matrix::<W, L>(&score_matrix, max_typos));
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {

@@ -63,23 +63,23 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
     let needle_bitmask = string_to_bitmask(needle.as_bytes());
 
-    let mut bucket_size_4 = FixedWidthBucket::<4>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_8 = FixedWidthBucket::<8>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_12 = FixedWidthBucket::<12>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_16 = FixedWidthBucket::<16>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_20 = FixedWidthBucket::<20>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_24 = FixedWidthBucket::<24>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_32 = FixedWidthBucket::<32>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_48 = FixedWidthBucket::<48>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_64 = FixedWidthBucket::<64>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_96 = FixedWidthBucket::<96>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_128 = FixedWidthBucket::<128>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_160 = FixedWidthBucket::<160>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_192 = FixedWidthBucket::<192>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_224 = FixedWidthBucket::<224>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_256 = FixedWidthBucket::<256>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_384 = FixedWidthBucket::<384>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_512 = FixedWidthBucket::<512>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_12 = FixedWidthBucket::<12, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_16 = FixedWidthBucket::<16, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_20 = FixedWidthBucket::<20, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_24 = FixedWidthBucket::<24, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_32 = FixedWidthBucket::<32, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_48 = FixedWidthBucket::<48, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_64 = FixedWidthBucket::<64, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_96 = FixedWidthBucket::<96, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_128 = FixedWidthBucket::<128, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_160 = FixedWidthBucket::<160, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_192 = FixedWidthBucket::<192, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_224 = FixedWidthBucket::<224, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_256 = FixedWidthBucket::<256, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_384 = FixedWidthBucket::<384, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_512 = FixedWidthBucket::<512, M>::new(needle, needle_bitmask, &opts);
 
     // If max_typos is set, we can ignore any haystacks that are shorter than the needle
     // minus the max typos, since it's impossible for them to match

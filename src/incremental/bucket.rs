@@ -2,8 +2,7 @@ use std::simd::{cmp::SimdOrd, Simd};
 
 use crate::{
     smith_waterman::simd::{
-        smith_waterman_inner, typos_from_score_matrix, HaystackChar, NeedleChar, SimdMask, SimdNum,
-        SimdVec,
+        smith_waterman_inner, typos_from_score_matrix, HaystackChar, NeedleChar,
     },
     Match,
 };
@@ -18,40 +17,33 @@ pub(crate) trait IncrementalBucketTrait {
     );
 }
 
-pub(crate) struct IncrementalBucket<N: SimdNum<L>, const W: usize, const L: usize>
+pub(crate) struct IncrementalBucket<const W: usize, const L: usize>
 where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
     pub length: usize,
     pub idxs: [u32; L],
-    pub haystacks: [HaystackChar<N, L>; W],
-    pub score_matrix: Vec<[Simd<N, L>; W]>,
+    pub haystacks: [HaystackChar<L>; W],
+    pub score_matrix: Vec<[Simd<u16, L>; W]>,
 }
 
-impl<N: SimdNum<L>, const W: usize, const L: usize> IncrementalBucket<N, W, L>
+impl<const W: usize, const L: usize> IncrementalBucket<W, L>
 where
-    N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
     pub fn new(haystacks: &[&str; L], idxs: [u32; L], length: usize) -> Self {
         Self {
             length,
             idxs,
-            haystacks: std::array::from_fn(|i| HaystackChar::from_haystacks(haystacks, i)),
+            haystacks: std::array::from_fn(|i| HaystackChar::from_haystack(haystacks, i)),
             score_matrix: vec![],
         }
     }
 }
 
-impl<N: SimdNum<L>, const W: usize, const L: usize> IncrementalBucketTrait
-    for IncrementalBucket<N, W, L>
+impl<const W: usize, const L: usize> IncrementalBucketTrait for IncrementalBucket<W, L>
 where
-    N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
     #[inline]
     fn process(
@@ -69,7 +61,7 @@ where
         // Adjust score matrix to the new size
         if new_needle_chars.len() > prefix_to_keep {
             self.score_matrix.extend(std::iter::repeat_n(
-                [N::ZERO_VEC; W],
+                [Simd::splat(0); W],
                 new_needle_chars.len() - prefix_to_keep,
             ));
         } else if new_needle_chars.len() < prefix_to_keep {
@@ -97,7 +89,7 @@ where
             );
         }
 
-        let mut all_time_max_score = N::ZERO_VEC;
+        let mut all_time_max_score = Simd::splat(0);
         for score_col in self.score_matrix.iter() {
             for score in score_col {
                 all_time_max_score = score.simd_max(all_time_max_score);
@@ -116,7 +108,7 @@ where
 
         // TODO: typos
         let typos = max_typos
-            .map(|max_typos| typos_from_score_matrix::<N, W, L>(&self.score_matrix, max_typos));
+            .map(|max_typos| typos_from_score_matrix::<W, L>(&self.score_matrix, max_typos));
 
         #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {

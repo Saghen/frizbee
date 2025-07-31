@@ -1,38 +1,28 @@
-use std::marker::PhantomData;
-
-use crate::smith_waterman::simd::{SimdMask, SimdNum, SimdVec};
-
 use super::bucket::{IncrementalBucket, IncrementalBucketTrait};
 
-pub(crate) struct IncrementalBucketCollection<'a, N: SimdNum<L>, const W: usize, const L: usize>
+pub(crate) struct IncrementalBucketCollection<'a, const W: usize, const L: usize>
 where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
     length: usize,
     haystacks: [&'a str; L],
     idxs: [u32; L],
-    _phantom: PhantomData<N>,
 }
 
-impl<'a, N: SimdNum<L> + 'static, const W: usize, const L: usize>
-    IncrementalBucketCollection<'a, N, W, L>
+impl<'a, const W: usize, const L: usize> IncrementalBucketCollection<'a, W, L>
 where
-    N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    std::simd::Simd<N, L>: SimdVec<N, L>,
-    std::simd::Mask<N::Mask, L>: SimdMask<N, L>,
 {
     pub fn new() -> Self {
         Self {
             length: 0,
             haystacks: [""; L],
             idxs: [0; L],
-            _phantom: PhantomData,
         }
     }
 
-    fn build_bucket(&self) -> Box<IncrementalBucket<N, W, L>> {
-        Box::new(IncrementalBucket::<N, W, L>::new(
+    fn build_bucket(&self) -> Box<IncrementalBucket<W, L>> {
+        Box::new(IncrementalBucket::<W, L>::new(
             &self.haystacks,
             self.idxs,
             self.length,

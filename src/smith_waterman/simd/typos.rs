@@ -1,30 +1,25 @@
 use std::simd::cmp::*;
 use std::simd::{Mask, Simd};
 
-use super::{SimdMask, SimdNum, SimdVec};
-
 #[inline]
-pub fn typos_from_score_matrix<N, const W: usize, const L: usize>(
-    score_matrix: &[[Simd<N, L>; W]],
+pub fn typos_from_score_matrix<const W: usize, const L: usize>(
+    score_matrix: &[[Simd<u16, L>; W]],
     max_typos: u16,
 ) -> [u16; L]
 where
-    N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    Simd<N, L>: SimdVec<N, L>,
-    Mask<N::Mask, L>: SimdMask<N, L>,
 {
     let mut typo_count = [0u16; L];
-    let mut scores = N::ZERO_VEC;
-    let mut positions = N::ZERO_VEC;
+    let mut scores = Simd::splat(0);
+    let mut positions = Simd::splat(0);
 
     // Get the starting position by looking at the last column
     // (last character of the needle)
     let last_column = score_matrix.last().unwrap();
     for (idx, &row_scores) in last_column.iter().enumerate() {
-        let row_max_mask: Mask<N::Mask, L> = row_scores.simd_gt(scores);
+        let row_max_mask: Mask<i16, L> = row_scores.simd_gt(scores);
         scores = row_max_mask.select(row_scores, scores);
-        positions = row_max_mask.select(Simd::splat(N::from_usize(idx)), positions);
+        positions = row_max_mask.select(Simd::splat(idx as u16), positions);
     }
 
     // Traceback and store the matched indices
@@ -73,7 +68,7 @@ where
         }
 
         // HACK: Compensate for the last column being a typo
-        if col_idx == 0 && score == N::ZERO {
+        if col_idx == 0 && score == 0 {
             typo_count[idx] += 1;
         }
     }
@@ -88,7 +83,7 @@ mod tests {
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
         typos_from_score_matrix(
-            &smith_waterman::<u16, 4, 1>(needle, &[haystack; 1], Some(1)).1,
+            &smith_waterman::<4, 1>(needle, &[haystack; 1], Some(1)).1,
             100,
         )[0]
     }

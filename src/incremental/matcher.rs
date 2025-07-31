@@ -17,23 +17,23 @@ impl IncrementalMatcher {
 
         let mut buckets: Vec<Box<dyn IncrementalBucketTrait>> = vec![];
 
-        let mut collection_size_4 = IncrementalBucketCollection::<'_, u16, 4, 8>::new();
-        let mut collection_size_8 = IncrementalBucketCollection::<'_, u16, 8, 8>::new();
-        let mut collection_size_12 = IncrementalBucketCollection::<'_, u16, 12, 8>::new();
-        let mut collection_size_16 = IncrementalBucketCollection::<'_, u16, 16, 8>::new();
-        let mut collection_size_20 = IncrementalBucketCollection::<'_, u16, 20, 8>::new();
-        let mut collection_size_24 = IncrementalBucketCollection::<'_, u16, 24, 8>::new();
-        let mut collection_size_32 = IncrementalBucketCollection::<'_, u16, 32, 8>::new();
-        let mut collection_size_48 = IncrementalBucketCollection::<'_, u16, 48, 8>::new();
-        let mut collection_size_64 = IncrementalBucketCollection::<'_, u16, 64, 8>::new();
-        let mut collection_size_96 = IncrementalBucketCollection::<'_, u16, 96, 8>::new();
-        let mut collection_size_128 = IncrementalBucketCollection::<'_, u16, 128, 8>::new();
-        let mut collection_size_160 = IncrementalBucketCollection::<'_, u16, 160, 8>::new();
-        let mut collection_size_192 = IncrementalBucketCollection::<'_, u16, 192, 8>::new();
-        let mut collection_size_224 = IncrementalBucketCollection::<'_, u16, 224, 8>::new();
-        let mut collection_size_256 = IncrementalBucketCollection::<'_, u16, 256, 8>::new();
-        let mut collection_size_384 = IncrementalBucketCollection::<'_, u16, 384, 8>::new();
-        let mut collection_size_512 = IncrementalBucketCollection::<'_, u16, 512, 8>::new();
+        let mut collection_size_4 = IncrementalBucketCollection::<'_, 4, 8>::new();
+        let mut collection_size_8 = IncrementalBucketCollection::<'_, 8, 8>::new();
+        let mut collection_size_12 = IncrementalBucketCollection::<'_, 12, 8>::new();
+        let mut collection_size_16 = IncrementalBucketCollection::<'_, 16, 8>::new();
+        let mut collection_size_20 = IncrementalBucketCollection::<'_, 20, 8>::new();
+        let mut collection_size_24 = IncrementalBucketCollection::<'_, 24, 8>::new();
+        let mut collection_size_32 = IncrementalBucketCollection::<'_, 32, 8>::new();
+        let mut collection_size_48 = IncrementalBucketCollection::<'_, 48, 8>::new();
+        let mut collection_size_64 = IncrementalBucketCollection::<'_, 64, 8>::new();
+        let mut collection_size_96 = IncrementalBucketCollection::<'_, 96, 8>::new();
+        let mut collection_size_128 = IncrementalBucketCollection::<'_, 128, 8>::new();
+        let mut collection_size_160 = IncrementalBucketCollection::<'_, 160, 8>::new();
+        let mut collection_size_192 = IncrementalBucketCollection::<'_, 192, 8>::new();
+        let mut collection_size_224 = IncrementalBucketCollection::<'_, 224, 8>::new();
+        let mut collection_size_256 = IncrementalBucketCollection::<'_, 256, 8>::new();
+        let mut collection_size_384 = IncrementalBucketCollection::<'_, 384, 8>::new();
+        let mut collection_size_512 = IncrementalBucketCollection::<'_, 512, 8>::new();
 
         for (i, haystack) in haystacks.iter().enumerate() {
             let i = i as u32;

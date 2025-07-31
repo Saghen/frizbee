@@ -17,7 +17,7 @@ const HAYSTACK: [&str; 8] = [
 #[library_benchmark]
 #[bench::print(NEEDLE, HAYSTACK)]
 fn bench_smith_waterman_simd_u16_16_8(needle: &str, haystack: [&str; 8]) -> [u16; 8] {
-    black_box(smith_waterman::<u16, 16, 8>(needle, &haystack, None).0)
+    black_box(smith_waterman::<16, 8>(needle, &haystack, None).0)
 }
 
 library_benchmark_group!(name = benches; benchmarks = bench_smith_waterman_simd_u16_16_8);

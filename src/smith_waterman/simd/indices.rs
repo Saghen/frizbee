@@ -1,30 +1,25 @@
 use std::collections::HashSet;
 use std::simd::cmp::*;
-use std::simd::{Mask, Simd};
-
-use super::{SimdMask, SimdNum, SimdVec};
+use std::simd::Simd;
 
 #[inline]
-pub fn char_indices_from_score_matrix<N, const W: usize, const L: usize>(
-    score_matrices: &[[Simd<N, L>; W]],
+pub fn char_indices_from_score_matrix<const W: usize, const L: usize>(
+    score_matrices: &[[Simd<u16, L>; W]],
 ) -> Vec<Vec<usize>>
 where
-    N: SimdNum<L>,
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
-    Simd<N, L>: SimdVec<N, L>,
-    Mask<N::Mask, L>: SimdMask<N, L>,
 {
     // Find the maximum score row/col for each haystack
-    let mut max_scores = N::ZERO_VEC;
-    let mut max_rows = N::ZERO_VEC;
-    let mut max_cols = N::ZERO_VEC;
+    let mut max_scores = Simd::splat(0);
+    let mut max_rows = Simd::splat(0);
+    let mut max_cols = Simd::splat(0);
 
     for (col, col_scores) in score_matrices.iter().enumerate() {
         for (row, row_scores) in col_scores.iter().enumerate() {
             let scores_mask = row_scores.simd_ge(max_scores);
 
-            max_rows = scores_mask.select(Simd::splat(N::from_usize(row)), max_rows);
-            max_cols = scores_mask.select(Simd::splat(N::from_usize(col)), max_cols);
+            max_rows = scores_mask.select(Simd::splat(row as u16), max_rows);
+            max_cols = scores_mask.select(Simd::splat(col as u16), max_cols);
 
             max_scores = max_scores.simd_max(*row_scores);
         }
@@ -43,20 +38,20 @@ where
         let mut score = score_matrices[col_idx][row_idx][idx];
 
         // NOTE: row_idx = 0 or col_idx = 0 will always have a score of 0
-        while score > 0.into() {
+        while score > 0 {
             // Gather up the scores for all possible paths
             let diag = if col_idx == 0 || row_idx == 0 {
-                N::ZERO
+                0
             } else {
                 score_matrices[col_idx - 1][row_idx - 1][idx]
             };
             let left = if col_idx == 0 {
-                N::ZERO
+                0
             } else {
                 score_matrices[col_idx - 1][row_idx][idx]
             };
             let up = if row_idx == 0 {
-                N::ZERO
+                0
             } else {
                 score_matrices[col_idx][row_idx - 1][idx]
             };
@@ -77,7 +72,7 @@ where
             // Up (gap in haystack)
             else if up >= left {
                 // Finished crossing a gap, remove any previous rows
-                if up > score && up > 0.into() {
+                if up > score && up > 0 {
                     indices.remove(&(row_idx));
                     indices.insert(row_idx.saturating_sub(1));
                 }
@@ -112,7 +107,7 @@ mod tests {
 
     fn run_single_indices(needle: &str, haystack: &str) -> Vec<usize> {
         let haystacks = [haystack; 1];
-        let (_, score_matrices, _) = smith_waterman::<u16, 16, 1>(needle, &haystacks, None);
+        let (_, score_matrices, _) = smith_waterman::<16, 1>(needle, &haystacks, None);
         let indices = char_indices_from_score_matrix(&score_matrices);
         indices[0].clone()
     }
@@ -139,7 +134,7 @@ mod tests {
             "toolbar",
         ];
 
-        let (_, score_matrices, _) = smith_waterman::<u16, 16, 16>(needle, &haystacks, None);
+        let (_, score_matrices, _) = smith_waterman::<16, 16>(needle, &haystacks, None);
         let indices = char_indices_from_score_matrix(&score_matrices);
         for indices in indices.into_iter() {
             assert_eq!(indices, [0])
