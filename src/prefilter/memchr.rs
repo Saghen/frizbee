@@ -1,13 +1,11 @@
 use memchr::{memchr, memchr2};
 
-#[inline(always)]
 pub fn prefilter(needle: &str, haystack: &str) -> bool {
     if needle.len() > haystack.len() {
         return false;
     }
     prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
 }
-#[inline(always)]
 pub fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
     if needle.len() > haystack.len() + 1 {
         return false;

@@ -29,11 +29,12 @@ where
         let offset = chunk_idx * L;
 
         let simds = to_simd::<W, L>(strs, offset);
-        let interleaved_simds = interleave_simd_fixed::<L>(simds);
+        let interleaved_chunk = interleave_simd_fixed::<L>(simds);
+
         if offset + L > W {
-            interleaved[offset..W].copy_from_slice(&interleaved_simds[0..(W - offset)]);
+            interleaved[offset..W].copy_from_slice(&interleaved_chunk[0..(W - offset)]);
         } else {
-            interleaved[offset..(offset + L)].copy_from_slice(&interleaved_simds);
+            interleaved[offset..(offset + L)].copy_from_slice(&interleaved_chunk);
         }
     }
 
@@ -89,15 +90,6 @@ mod tests {
     use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
     use super::interleave_simd;
-
-    fn interleave_ref<const W: usize, const L: usize>(strs: [&str; L]) -> [Simd<u16, L>; W]
-    where
-        LaneCount<L>: SupportedLaneCount,
-    {
-        std::array::from_fn(|i| {
-            Simd::from_array(std::array::from_fn(|j| strs[j].as_bytes()[i] as u16))
-        })
-    }
 
     fn assert_matrix_eq<const L: usize, const W: usize>(a: [Simd<u16, L>; W], b: [[u8; L]; W])
     where
