@@ -88,11 +88,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smith_waterman::simd::smith_waterman;
+    use crate::{smith_waterman::simd::smith_waterman, Scoring};
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
         typos_from_score_matrix(
-            &smith_waterman::<4, 1>(needle, &[haystack; 1], Some(1)).1,
+            &smith_waterman::<4, 1>(needle, &[haystack; 1], Some(1), &Scoring::default()).1,
             100,
         )[0]
     }

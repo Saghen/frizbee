@@ -9,7 +9,7 @@ use frizbee::{smith_waterman::simd::interleave_simd, *};
 use generate::{generate_haystack, HaystackGenerationOptions};
 use nucleo::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
-    Config, Matcher as NucleoMatcher,
+    Config as NucleoConfig, Matcher as NucleoMatcher,
 };
 
 mod generate;
@@ -59,7 +59,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 BenchmarkId::new("Nucleo", median_length),
                 haystack,
                 |b, haystack| {
-                    let mut matcher = NucleoMatcher::new(Config::DEFAULT);
+                    let mut matcher = NucleoMatcher::new(NucleoConfig::DEFAULT);
                     let atom = Atom::new(
                         needle,
                         CaseMatching::Ignore,
@@ -152,10 +152,10 @@ fn match_list_bench(needle: &str, haystack: &[&str], max_typos: Option<u16>) -> 
     match_list(
         black_box(needle),
         black_box(haystack),
-        Options {
+        black_box(Config {
             max_typos,
             ..Default::default()
-        },
+        }),
     )
 }
 
@@ -168,7 +168,7 @@ fn match_list_parallel_bench(
     match_list_parallel(
         black_box(needle),
         black_box(haystack),
-        Options {
+        Config {
             max_typos,
             ..Default::default()
         },

@@ -30,6 +30,8 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
 
         for j in 0..haystack.len() {
             let is_prefix = j == 0;
+            let is_offset_prefix =
+                j == 1 && prev_col_scores[0] == 0 && !haystack[0].is_ascii_alphabetic();
 
             // Load chunk and remove casing
             let haystack_char = haystack[j];
@@ -44,6 +46,8 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
             // Give a bonus for prefix matches
             let match_score = if is_prefix {
                 MATCH_SCORE + PREFIX_BONUS
+            } else if is_offset_prefix {
+                MATCH_SCORE + OFFSET_PREFIX_BONUS
             } else {
                 MATCH_SCORE
             };
@@ -101,11 +105,10 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
         }
     }
 
-    let max_score = if haystack == needle {
-        all_time_max_score + EXACT_MATCH_BONUS
-    } else {
-        all_time_max_score
-    };
+    let mut max_score = all_time_max_score;
+    if haystack == needle {
+        max_score += EXACT_MATCH_BONUS;
+    }
 
     (max_score, score_matrix)
 }
@@ -113,11 +116,21 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{smith_waterman::simd::smith_waterman as smith_waterman_simd, Scoring};
 
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        smith_waterman(needle, haystack).0
+        let ref_score = smith_waterman(needle, haystack).0;
+        let simd_score =
+            smith_waterman_simd::<16, 1>(needle, &[haystack], None, &Scoring::default()).0[0];
+
+        assert_eq!(
+            ref_score, simd_score,
+            "Reference and SIMD scores don't match"
+        );
+
+        ref_score
     }
 
     #[test]
@@ -134,17 +147,26 @@ mod tests {
     }
 
     #[test]
+    fn test_score_offset_prefix() {
+        // Give prefix bonus on second char if the first char isn't a letter
+        assert_eq!(get_score("a", "-a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
+        assert_eq!(get_score("-a", "-ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("a", "'a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
+        assert_eq!(get_score("a", "Ba"), CHAR_SCORE);
+    }
+
+    #[test]
     fn test_score_exact_match() {
         assert_eq!(
             get_score("a", "a"),
-            CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
+            CHAR_SCORE + PREFIX_BONUS + EXACT_MATCH_BONUS
         );
         assert_eq!(
             get_score("abc", "abc"),
-            3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
+            3 * CHAR_SCORE + PREFIX_BONUS + EXACT_MATCH_BONUS
         );
         assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
-        // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]
@@ -154,7 +176,7 @@ mod tests {
         assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
         assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
         assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
-        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+        assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
     }
 
     #[test]

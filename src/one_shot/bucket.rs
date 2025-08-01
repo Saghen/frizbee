@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::prefilter::bitmask::string_to_bitmask_simd;
-use crate::prefilter::memchr;
+use crate::prefilter::{prefilter, prefilter_with_typo, string_to_bitmask};
 use crate::smith_waterman::simd::{smith_waterman, typos_from_score_matrix};
-use crate::{Match, Options};
+use crate::{Config, Match, Scoring};
 
 use super::Appendable;
 
@@ -18,18 +17,22 @@ enum PrefilterMethod {
 pub(crate) struct FixedWidthBucket<'a, const W: usize, M: Appendable<Match>> {
     has_avx512: bool,
     has_avx2: bool,
+
     length: usize,
     needle: &'a str,
     needle_bitmask: u64,
     haystacks: [&'a str; 32],
     idxs: [u32; 32],
+
     max_typos: Option<u16>,
+    scoring: Scoring,
     prefilter: PrefilterMethod,
+
     _phantom: PhantomData<M>,
 }
 
 impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
-    pub fn new(needle: &'a str, needle_bitmask: u64, opts: &Options) -> Self {
+    pub fn new(needle: &'a str, needle_bitmask: u64, config: &Config) -> Self {
         FixedWidthBucket {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             has_avx512: is_x86_feature_detected!("avx512f")
@@ -47,14 +50,17 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
             needle_bitmask,
             haystacks: [""; 32],
             idxs: [0; 32],
-            max_typos: opts.max_typos,
-            prefilter: match (opts.prefilter, opts.max_typos) {
+
+            max_typos: config.max_typos,
+            scoring: config.scoring.clone(),
+            prefilter: match (config.prefilter, config.max_typos) {
                 (true, Some(0)) if W >= 24 => PrefilterMethod::Memchr,
                 (true, Some(1)) if W >= 20 => PrefilterMethod::Memchr,
                 // TODO: disable on long haystacks? arbitrarily picked 48 for now
                 (true, _) if W < 48 => PrefilterMethod::Bitmask,
                 _ => PrefilterMethod::None,
             },
+
             _phantom: PhantomData,
         }
     }
@@ -62,18 +68,16 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
     pub fn add_haystack(&mut self, matches: &mut M, haystack: &'a str, idx: u32) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
-                (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
-                (PrefilterMethod::Memchr, Some(1)) => {
-                    memchr::prefilter_with_typo(self.needle, haystack)
-                }
+                (PrefilterMethod::Memchr, Some(0)) => prefilter(self.needle, haystack),
+                (PrefilterMethod::Memchr, Some(1)) => prefilter_with_typo(self.needle, haystack),
 
                 (PrefilterMethod::Bitmask, Some(0)) => {
-                    self.needle_bitmask & string_to_bitmask_simd(haystack.as_bytes())
+                    self.needle_bitmask & string_to_bitmask(haystack.as_bytes())
                         == self.needle_bitmask
                 }
                 // TODO: skip this when typos > 2?
                 (PrefilterMethod::Bitmask, Some(max)) => {
-                    (self.needle_bitmask & string_to_bitmask_simd(haystack.as_bytes())
+                    (self.needle_bitmask & string_to_bitmask(haystack.as_bytes())
                         ^ self.needle_bitmask)
                         .count_ones()
                         <= max as u32
@@ -113,10 +117,11 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
             return;
         }
 
-        let (scores, score_matrix, exact_matches) = smith_waterman::<W, L>(
+        let (scores, score_matrix) = smith_waterman::<W, L>(
             self.needle,
             &self.haystacks.get(0..L).unwrap().try_into().unwrap(),
             self.max_typos,
+            &self.scoring,
         );
 
         let typos = self
@@ -136,9 +141,8 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 
             let score_idx = self.idxs[idx];
             matches.append(Match {
-                index_in_haystack: score_idx,
+                index: score_idx,
                 score: scores[idx],
-                exact: exact_matches[idx],
             });
         }
 

@@ -1,11 +1,16 @@
 use memchr::{memchr, memchr2};
 
+/// Checks if the needle is wholly contained in the haystack, ignoring case. Used as a prefiltering
+/// step ahead of Smith Waterman, when `max_typos = 0`.
 pub fn prefilter(needle: &str, haystack: &str) -> bool {
     if needle.len() > haystack.len() {
         return false;
     }
     prefilter_ascii(needle.as_bytes(), haystack.as_bytes()).is_some()
 }
+
+/// Checks if the needle is contained in the haystack, allowing up to one missing character, ignoring case.
+/// Used as a prefiltering step ahead of Smith Waterman, when `max_typos = 1`.
 pub fn prefilter_with_typo(needle: &str, haystack: &str) -> bool {
     if needle.len() > haystack.len() + 1 {
         return false;
