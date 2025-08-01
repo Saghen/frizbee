@@ -90,42 +90,21 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
         self.length += 1;
 
         match self.length {
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            32 if self.has_avx512 => unsafe { self.finalize_512(matches) },
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            16 if self.has_avx2 && !self.has_avx512 => unsafe { self.finalize_256(matches) },
-            8 if !self.has_avx2 && !self.has_avx512 => self.finalize_128(matches),
+            32 if self.has_avx512 => self._finalize::<32>(matches),
+            16 if self.has_avx2 && !self.has_avx512 => self._finalize::<16>(matches),
+            8 if !self.has_avx2 && !self.has_avx512 => self._finalize::<8>(matches),
             _ => {}
         }
     }
 
     pub fn finalize(&mut self, matches: &mut M) {
         match self.length {
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            17.. if self.has_avx512 => unsafe { self.finalize_512(matches) },
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            9.. if self.has_avx2 => unsafe { self.finalize_256(matches) },
-            0.. => self.finalize_128(matches),
+            17.. => self._finalize::<32>(matches),
+            9.. => self._finalize::<16>(matches),
+            0.. => self._finalize::<8>(matches),
         }
     }
 
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    #[target_feature(enable = "avx512f", enable = "avx512bitalg")]
-    unsafe fn finalize_512(&mut self, matches: &mut M) {
-        self._finalize::<32>(matches);
-    }
-
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    #[target_feature(enable = "avx2")]
-    unsafe fn finalize_256(&mut self, matches: &mut M) {
-        self._finalize::<16>(matches);
-    }
-
-    fn finalize_128(&mut self, matches: &mut M) {
-        self._finalize::<8>(matches);
-    }
-
-    #[inline(always)]
     fn _finalize<const L: usize>(&mut self, matches: &mut M)
     where
         std::simd::LaneCount<L>: std::simd::SupportedLaneCount,

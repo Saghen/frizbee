@@ -1,7 +1,16 @@
 use std::simd::cmp::*;
 use std::simd::{Mask, Simd};
 
-#[inline]
+use multiversion::multiversion;
+
+#[multiversion(targets(
+    // x86-64-v4 without lahfsahf
+    "x86_64+avx512f+avx512bw+avx512cd+avx512dq+avx512vl+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
+    // x86-64-v3 without lahfsahf
+    "x86_64+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
+    // x86-64-v2 without lahfsahf
+    "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
+))]
 pub fn typos_from_score_matrix<const W: usize, const L: usize>(
     score_matrix: &[[Simd<u16, L>; W]],
     max_typos: u16,

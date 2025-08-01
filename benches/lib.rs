@@ -1,7 +1,11 @@
+#![feature(portable_simd)]
+#![feature(array_repeat)]
+
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use frizbee::*;
+use frizbee::{smith_waterman::simd::interleave_simd, *};
 use generate::{generate_haystack, HaystackGenerationOptions};
 use nucleo::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
@@ -11,6 +15,15 @@ use nucleo::{
 mod generate;
 
 const SEED: u64 = 12345;
+
+fn interleave<const W: usize, const L: usize>(strs: [&str; L]) -> [std::simd::Simd<u16, L>; W]
+where
+    std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
+{
+    std::array::from_fn(|i| {
+        std::simd::Simd::from_array(std::array::from_fn(|j| strs[j].as_bytes()[i] as u16))
+    })
+}
 
 fn criterion_benchmark(c: &mut Criterion) {
     let needle = "deadbeef";
@@ -22,6 +35,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     ] {
         let mut group = c.benchmark_group(name);
 
+        // for median_length in [16, 64] {
         for median_length in [16, 32, 64, 128] {
             // Generate haystacks
             let options = HaystackGenerationOptions {
@@ -42,11 +56,6 @@ fn criterion_benchmark(c: &mut Criterion) {
 
             // Sequential
             group.bench_with_input(
-                BenchmarkId::new("Frizbee", median_length),
-                haystack,
-                |b, haystack| b.iter(|| match_list_bench(needle, haystack, Some(0))),
-            );
-            group.bench_with_input(
                 BenchmarkId::new("Nucleo", median_length),
                 haystack,
                 |b, haystack| {
@@ -60,6 +69,11 @@ fn criterion_benchmark(c: &mut Criterion) {
                     );
                     b.iter(|| atom.match_list(black_box(haystack.iter()), &mut matcher))
                 },
+            );
+            group.bench_with_input(
+                BenchmarkId::new("Frizbee", median_length),
+                haystack,
+                |b, haystack| b.iter(|| match_list_bench(needle, haystack, Some(0))),
             );
             group.bench_with_input(
                 BenchmarkId::new("Frizbee: All Scores", median_length),
@@ -86,6 +100,52 @@ fn criterion_benchmark(c: &mut Criterion) {
         }
         group.finish();
     }
+
+    // Interleave
+    c.bench_function("interleave simd - 32", |b| {
+        b.iter(|| {
+            interleave_simd::<32, 32>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
+    c.bench_function("interleave - 32", |b| {
+        b.iter(|| {
+            interleave::<32, 32>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
+
+    c.bench_function("interleave simd - 16", |b| {
+        b.iter(|| {
+            interleave_simd::<32, 16>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
+    c.bench_function("interleave - 16", |b| {
+        b.iter(|| {
+            interleave::<32, 16>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
+
+    c.bench_function("interleave simd - 8", |b| {
+        b.iter(|| {
+            interleave_simd::<32, 8>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
+    c.bench_function("interleave - 8", |b| {
+        b.iter(|| {
+            interleave::<32, 8>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
 }
 
 fn match_list_bench(needle: &str, haystack: &[&str], max_typos: Option<u16>) -> Vec<Match> {
@@ -119,8 +179,8 @@ fn match_list_parallel_bench(
 criterion_group! {
     name = benches;
     config = Criterion::default()
-        .warm_up_time(Duration::from_millis(100))
-        .measurement_time(Duration::from_secs(1));
+        .warm_up_time(Duration::from_millis(200))
+        .measurement_time(Duration::from_secs(2));
     targets = criterion_benchmark
 }
 criterion_main!(benches);
