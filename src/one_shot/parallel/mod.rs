@@ -22,7 +22,7 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     opts: Options,
     max_threads: usize,
 ) -> Vec<Match> {
-    let thread_count = choose_thread_count(haystacks.len(), opts.max_typos).min(max_threads);
+    let thread_count = choose_thread_count(haystacks.len(), opts.max_typos).clamp(1, max_threads);
     if thread_count == 1 {
         return match_list(needle, haystacks, opts);
     }
@@ -65,7 +65,7 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     let items_per_thread = haystacks.len().div_ceil(thread_count);
     std::thread::scope(|s| {
         for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
-            assert!(thread_idx < thread_count, "thread index out of bounds");
+            debug_assert!(thread_idx < thread_count, "thread index out of bounds");
 
             let (matches_slice, remaining_slice) =
                 matches_remaining_slice.split_at_mut(haystacks.len());
