@@ -1,6 +1,6 @@
 use crate::r#const::*;
 
-pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
+pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool) {
     let needle = needle.as_bytes();
     let haystack = haystack.as_bytes();
 
@@ -106,11 +106,12 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
     }
 
     let mut max_score = all_time_max_score;
-    if haystack == needle {
+    let exact = haystack == needle;
+    if exact {
         max_score += EXACT_MATCH_BONUS;
     }
 
-    (max_score, score_matrix)
+    (max_score, score_matrix, exact)
 }
 
 #[cfg(test)]

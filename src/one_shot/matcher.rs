@@ -55,6 +55,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
             matches.append(Match {
                 index: (i as u32) + index_offset,
                 score: 0,
+                exact: false,
             });
         }
         return;
@@ -95,8 +96,12 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
         }
         // fallback to greedy matching
         if match_too_large(needle, haystack) {
-            let (score, _) = match_greedy(needle, haystack, &config.scoring);
-            matches.append(Match { index: i, score });
+            let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
+            matches.append(Match {
+                index: i,
+                score,
+                exact,
+            });
             continue;
         }
 
@@ -122,8 +127,12 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
             // fallback to greedy matching
             _ => {
-                let (score, _) = match_greedy(needle, haystack, &config.scoring);
-                matches.append(Match { index: i, score });
+                let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
+                matches.append(Match {
+                    index: i,
+                    score,
+                    exact,
+                });
                 continue;
             }
         };

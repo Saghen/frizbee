@@ -20,15 +20,19 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(
 
     // Fallback to greedy matching
     if match_too_large(needle, haystack) {
-        let (score, indices) = match_greedy(needle, haystack, &config.scoring);
+        let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
         if score == 0 {
             return None;
         }
-        return Some(MatchIndices { score, indices });
+        return Some(MatchIndices {
+            score,
+            indices,
+            exact,
+        });
     }
 
     // Get score matrix
-    let (score, score_matrix) = smith_waterman(needle, haystack);
+    let (score, score_matrix, exact) = smith_waterman(needle, haystack);
     let score_matrix_ref = score_matrix
         .iter()
         .map(|v| v.as_slice())
@@ -44,5 +48,9 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(
 
     let indices = char_indices_from_score_matrix(&score_matrix_ref);
 
-    Some(MatchIndices { score, indices })
+    Some(MatchIndices {
+        score,
+        indices,
+        exact,
+    })
 }

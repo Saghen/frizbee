@@ -10,7 +10,7 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystack: S2,
     scoring: &Scoring,
-) -> (u16, Vec<usize>) {
+) -> (u16, Vec<usize>, bool) {
     let needle = needle.as_ref().as_bytes();
     let haystack = haystack.as_ref().as_bytes();
 
@@ -91,10 +91,15 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
         }
 
         // didn't find a match
-        return (0, vec![]);
+        return (0, vec![], false);
     }
 
-    (score, indices)
+    let exact = haystack == needle;
+    if exact {
+        score += scoring.exact_match_bonus;
+    }
+
+    (score, indices, exact)
 }
 
 #[cfg(test)]

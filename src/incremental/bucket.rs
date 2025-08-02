@@ -116,6 +116,7 @@ where
             matches.push(Match {
                 index: score_idx,
                 score: scores[idx],
+                exact: false,
             });
         }
     }

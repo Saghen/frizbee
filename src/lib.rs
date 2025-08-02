@@ -26,6 +26,8 @@ pub struct Match {
     pub score: u16,
     /** Index of the match in the original list of haystacks */
     pub index: u32,
+    /** Matched the needle exactly (i.e. "foo" on "foo") */
+    pub exact: bool,
 }
 
 impl PartialOrd for Match {
@@ -53,6 +55,8 @@ impl Eq for Match {}
 pub struct MatchIndices {
     pub score: u16,
     pub indices: Vec<usize>,
+    /** Matched the needle exactly (i.e. "foo" on "foo") */
+    pub exact: bool,
 }
 
 #[derive(Debug, Clone)]

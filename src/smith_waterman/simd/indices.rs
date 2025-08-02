@@ -107,7 +107,7 @@ mod tests {
 
     fn get_indices(needle: &str, haystack: &str) -> Vec<usize> {
         let haystacks = [haystack; 1];
-        let (_, score_matrices) =
+        let (_, score_matrices, _) =
             smith_waterman::<16, 1>(needle, &haystacks, None, &Scoring::default());
         let indices = char_indices_from_score_matrix(&score_matrices);
         indices[0].clone()
@@ -135,7 +135,7 @@ mod tests {
             "toolbar",
         ];
 
-        let (_, score_matrices) =
+        let (_, score_matrices, _) =
             smith_waterman::<16, 16>(needle, &haystacks, None, &Scoring::default());
         let indices = char_indices_from_score_matrix(&score_matrices);
         for indices in indices.into_iter() {

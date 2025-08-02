@@ -117,7 +117,7 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
             return;
         }
 
-        let (scores, score_matrix) = smith_waterman::<W, L>(
+        let (scores, score_matrix, exact_matches) = smith_waterman::<W, L>(
             self.needle,
             &self.haystacks.get(0..L).unwrap().try_into().unwrap(),
             self.max_typos,
@@ -143,6 +143,7 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
             matches.append(Match {
                 index: score_idx,
                 score: scores[idx],
+                exact: exact_matches[idx],
             });
         }
 

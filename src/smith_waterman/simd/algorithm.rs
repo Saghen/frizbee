@@ -131,7 +131,7 @@ pub fn smith_waterman<const W: usize, const L: usize>(
     haystack_strs: &[&str; L],
     max_typos: Option<u16>,
     scoring: &Scoring,
-) -> ([u16; L], Vec<[Simd<u16, L>; W]>)
+) -> ([u16; L], Vec<[Simd<u16, L>; W]>, [bool; L])
 where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
@@ -186,15 +186,17 @@ where
         }
     }
 
+    let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
+
     let max_scores = std::array::from_fn(|i| {
         let mut score = all_time_max_score[i];
-        if haystack_strs[i] == needle_str {
+        if exact_matches[i] {
             score += scoring.exact_match_bonus;
         }
         score
     });
 
-    (max_scores, score_matrix)
+    (max_scores, score_matrix, exact_matches)
 }
 
 #[cfg(test)]
