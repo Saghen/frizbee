@@ -10,11 +10,11 @@ mod threaded_vec;
 use thread_slice::ThreadSlice;
 use threaded_vec::ThreadedVec;
 
-/// Computes the Smith-Waterman score with affine gaps for the list of given targets with
-/// multithreading.
+/// Computes the Smith-Waterman score with affine gaps for a needle against a list of haystacks
+/// with multithreading.
 ///
-/// You should call this function with as many targets as you have available as it will
-/// automatically chunk the targets based on string length to avoid unnecessary computation
+/// You should call this function with as many haystacks as you have available as it will
+/// automatically chunk the haystacks based on string length to avoid unnecessary computation
 /// due to SIMD
 pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
