@@ -16,6 +16,7 @@ pub mod smith_waterman;
 
 pub use incremental::IncrementalMatcher;
 pub use one_shot::{match_indices, match_list, match_list_parallel};
+pub use smith_waterman::simd::avx2::interleave_simd_avx2;
 
 use r#const::*;
 

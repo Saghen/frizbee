@@ -1,6 +1,9 @@
-use std::{arch::x86_64::*, simd::Simd};
+use std::{
+    arch::x86_64::*,
+    simd::{num::SimdUint, Simd},
+};
 
-#[inline(never)]
+#[target_feature(enable = "avx2")]
 pub fn interleave_simd_avx2<const W: usize>(strs: [&str; 16]) -> [Simd<u16, 16>; W] {
     let str_bytes: [&[u8]; 16] = std::array::from_fn(|i| strs[i].as_bytes());
     let str_lens: [usize; 16] = std::array::from_fn(|i| str_bytes[i].len());
@@ -17,15 +20,14 @@ pub fn interleave_simd_avx2<const W: usize>(strs: [&str; 16]) -> [Simd<u16, 16>;
     interleaved
 }
 
-#[inline(always)]
-fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m256i; 16] {
+#[inline]
+fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m128i; 16] {
     unsafe {
         std::array::from_fn(|i| {
             let len = str_lens[i];
-
             if offset >= len {
                 // Beyond string length - return zeros
-                return _mm256_setzero_si256();
+                return _mm_setzero_si128();
             }
 
             let remaining = len - offset;
@@ -34,97 +36,86 @@ fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m
             if load_len == 16 {
                 // Full load - most common case
                 // u8x16 = 128 bit
-                let bytes = _mm_loadu_si128(str_bytes[i][offset..].as_ptr() as *const __m128i);
-                // u8x16 -> u16x16
-                _mm256_cvtepu8_epi16(bytes)
+                _mm_loadu_si128(str_bytes[i][offset..].as_ptr() as *const __m128i)
             } else {
                 // Partial load - use masked load if available
-                let mut temp = _mm_setzero_si128();
+                let mut data = _mm_setzero_si128();
                 std::ptr::copy_nonoverlapping(
                     str_bytes[i][offset..].as_ptr(),
-                    &mut temp as *mut __m128i as *mut u8,
+                    &mut data as *mut __m128i as *mut u8,
                     load_len,
                 );
-                _mm256_cvtepu8_epi16(temp)
+                data
             }
         })
     }
 }
 
-#[inline(always)]
-pub fn interleave_chunk(mut simds: [__m256i; 16]) -> [Simd<u16, 16>; 16] {
+#[inline]
+fn interleave_chunk(mut simds: [__m128i; 16]) -> [Simd<u16, 16>; 16] {
     unsafe {
-        // Stage 1: distance = 8
+        // distance = 8
         for i in 0..8 {
-            let (lo, hi) = interleave_u16x16(simds[i], simds[i + 8]);
+            let (lo, hi) = interleave_u8x16(simds[i], simds[i + 8]);
             simds[i] = lo;
             simds[i + 8] = hi;
         }
 
-        // Stage 2: distance = 4
+        // distance = 4
         for base in (0..16).step_by(8) {
             for i in 0..4 {
-                let (lo, hi) = interleave_u16x16(simds[base + i], simds[base + i + 4]);
+                let (lo, hi) = interleave_u8x16(simds[base + i], simds[base + i + 4]);
                 simds[base + i] = lo;
                 simds[base + i + 4] = hi;
             }
         }
 
-        // Stage 3: distance = 2
+        // distance = 2
         for base in (0..16).step_by(4) {
             for i in 0..2 {
-                let (lo, hi) = interleave_u16x16(simds[base + i], simds[base + i + 2]);
+                let (lo, hi) = interleave_u8x16(simds[base + i], simds[base + i + 2]);
                 simds[base + i] = lo;
                 simds[base + i + 2] = hi;
             }
         }
 
-        // Stage 4: distance = 1
+        // distance = 1
         for base in (0..16).step_by(2) {
-            let (lo, hi) = interleave_u16x16(simds[base], simds[base + 1]);
+            let (lo, hi) = interleave_u8x16(simds[base], simds[base + 1]);
             simds[base] = lo;
             simds[base + 1] = hi;
         }
 
-        std::mem::transmute::<[__m256i; 16], [Simd<u16, 16>; 16]>(simds)
+        // Convert u8x16 to u16x16
+        std::mem::transmute::<[__m128i; 16], [Simd<u8, 16>; 16]>(simds).map(|s| s.cast::<u16>())
     }
 }
 
-unsafe fn interleave_u16x16(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
-    // Use vpunpcklwd and vpunpckhwd for 16-bit interleaving
-    let lo = _mm256_unpacklo_epi16(a, b);
-    let hi = _mm256_unpackhi_epi16(a, b);
-
-    // Fix the lane crossing issue in AVX2
-    let lo_fixed = _mm256_permute4x64_epi64(lo, 0b11011000); // 0xD8
-    let hi_fixed = _mm256_permute4x64_epi64(hi, 0b11011000);
-
-    (lo_fixed, hi_fixed)
+#[inline]
+unsafe fn interleave_u8x16(a: __m128i, b: __m128i) -> (__m128i, __m128i) {
+    let low = _mm_unpacklo_epi8(a, b); // Interleave low 8 bytes
+    let high = _mm_unpackhi_epi8(a, b); // Interleave high 8 bytes
+    (low, high)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        arch::x86_64::{__m256i, _mm256_loadu_si256},
-        simd::Simd,
-    };
-
-    use super::interleave_u16x16;
+    use super::interleave_simd_avx2;
 
     #[test]
     fn test_interleave_avx2() {
-        let a = unsafe { _mm256_loadu_si256([65u16; 16].as_ptr() as *const __m256i) };
-        let b = unsafe { _mm256_loadu_si256([66u16; 16].as_ptr() as *const __m256i) };
-        let (a, b) = unsafe { interleave_u16x16(a, b) };
-        let a = unsafe { std::mem::transmute::<__m256i, Simd<u16, 16>>(a) };
-        let b = unsafe { std::mem::transmute::<__m256i, Simd<u16, 16>>(b) };
-        assert_eq!(
-            a.to_array(),
-            [65, 66, 65, 66, 65, 66, 65, 66, 65, 66, 65, 66, 65, 66, 65, 66]
-        );
-        assert_eq!(
-            b.to_array(),
-            [65, 66, 65, 66, 65, 66, 65, 66, 65, 66, 65, 66, 65, 66, 65, 66]
-        );
+        // TODO: what the fuck
+        let strings_owned: [String; 16] =
+            std::array::from_fn(|i| -> [u8; 32] { std::array::from_fn(|j| (i * 16 + j) as u8) })
+                .map(|str| unsafe { String::from_utf8_unchecked(str.to_vec()) });
+        let strings = strings_owned.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+        let strings: &[&str; 16] = strings.as_slice().try_into().unwrap();
+
+        let transposed = unsafe { interleave_simd_avx2::<32>(*strings) };
+
+        let expected: [[u16; 16]; 32] =
+            std::array::from_fn(|i| std::array::from_fn(|j| ((j * 16 + i) % 256) as u16));
+
+        assert_eq!(transposed.map(|simd| simd.to_array()), expected);
     }
 }

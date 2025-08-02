@@ -3,7 +3,7 @@ use std::{
     simd::{num::SimdUint, Simd},
 };
 
-#[inline(never)]
+#[target_feature(enable = "avx2", enable = "avx512f", enable = "avx512bw")]
 pub fn interleave_simd_avx512<const W: usize>(strs: [&str; 32]) -> [Simd<u16, 32>; W] {
     let str_bytes: [&[u8]; 32] = std::array::from_fn(|i| strs[i].as_bytes());
     let str_lens: [usize; 32] = std::array::from_fn(|i| str_bytes[i].len());
@@ -25,13 +25,17 @@ fn to_simd(str_bytes: [&[u8]; 32], str_lens: [usize; 32], offset: usize) -> [__m
     unsafe {
         std::array::from_fn(|i| {
             let len = str_lens[i];
+            if offset >= len {
+                // Beyond string length - return zeros
+                return _mm256_setzero_si256();
+            }
+
             let remaining = len - offset;
             let load_len = remaining.min(32);
 
             if load_len == 32 {
                 _mm256_loadu_si256(str_bytes[i][offset..].as_ptr() as *const __m256i)
             } else {
-                // Partial load - use masked load if available
                 let mut temp = _mm256_setzero_si256();
                 std::ptr::copy_nonoverlapping(
                     str_bytes[i][offset..].as_ptr(),
@@ -47,14 +51,14 @@ fn to_simd(str_bytes: [&[u8]; 32], str_lens: [usize; 32], offset: usize) -> [__m
 #[inline(always)]
 pub fn interleave_chunk(mut simds: [__m256i; 32]) -> [Simd<u8, 32>; 32] {
     unsafe {
-        // Stage 1: distance = 16
+        // distance = 16
         for i in 0..16 {
             let (lo, hi) = interleave_u8x32(simds[i], simds[i + 16]);
             simds[i] = lo;
             simds[i + 16] = hi;
         }
 
-        // Stage 2: distance = 8
+        // distance = 8
         for base in (0..32).step_by(16) {
             for i in 0..8 {
                 let (lo, hi) = interleave_u8x32(simds[base + i], simds[base + i + 8]);
@@ -63,7 +67,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 32]) -> [Simd<u8, 32>; 32] {
             }
         }
 
-        // Stage 3: distance = 4
+        // distance = 4
         for base in (0..32).step_by(8) {
             for i in 0..4 {
                 let (lo, hi) = interleave_u8x32(simds[base + i], simds[base + i + 4]);
@@ -72,7 +76,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 32]) -> [Simd<u8, 32>; 32] {
             }
         }
 
-        // Stage 4: distance = 2
+        // distance = 2
         for base in (0..32).step_by(4) {
             for i in 0..2 {
                 let (lo, hi) = interleave_u8x32(simds[base + i], simds[base + i + 2]);
@@ -81,7 +85,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 32]) -> [Simd<u8, 32>; 32] {
             }
         }
 
-        // Stage 5: distance = 1
+        // distance = 1
         for base in (0..32).step_by(2) {
             let (lo, hi) = interleave_u8x32(simds[base], simds[base + 1]);
             simds[base] = lo;
@@ -92,6 +96,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 32]) -> [Simd<u8, 32>; 32] {
     }
 }
 
+#[inline(always)]
 unsafe fn interleave_u8x32(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
     // Use vpunpcklwd and vpunpckhwd for 16-bit interleaving
     let lo = _mm256_unpacklo_epi8(a, b);
