@@ -4,7 +4,7 @@ use super::Appendable;
 use crate::one_shot::match_too_large;
 use crate::prefilter::bitmask::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;
-use crate::{Match, Options};
+use crate::{Config, Match};
 
 /// Computes the Smith-Waterman score with affine gaps for the list of given targets.
 ///
@@ -14,17 +14,17 @@ use crate::{Match, Options};
 pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystacks: &[S2],
-    opts: Options,
+    config: Config,
 ) -> Vec<Match> {
-    let mut matches = if opts.max_typos.is_none() {
+    let mut matches = if config.max_typos.is_none() {
         Vec::with_capacity(haystacks.len())
     } else {
         vec![]
     };
 
-    match_list_impl(needle, haystacks, 0, opts, &mut matches);
+    match_list_impl(needle, haystacks, 0, config.clone(), &mut matches);
 
-    if opts.sort {
+    if config.sort {
         #[cfg(feature = "parallel_sort")]
         {
             use rayon::prelude::*;
@@ -41,7 +41,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
     needle: S1,
     haystacks: &[S2],
     index_offset: u32,
-    opts: Options,
+    config: Config,
     matches: &mut M,
 ) {
     assert!(
@@ -53,7 +53,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
     if needle.is_empty() {
         for (i, _) in haystacks.iter().enumerate() {
             matches.append(Match {
-                index_in_haystack: (i as u32) + index_offset,
+                index: (i as u32) + index_offset,
                 score: 0,
                 exact: false,
             });
@@ -63,27 +63,27 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
     let needle_bitmask = string_to_bitmask(needle.as_bytes());
 
-    let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_12 = FixedWidthBucket::<12, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_16 = FixedWidthBucket::<16, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_20 = FixedWidthBucket::<20, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_24 = FixedWidthBucket::<24, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_32 = FixedWidthBucket::<32, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_48 = FixedWidthBucket::<48, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_64 = FixedWidthBucket::<64, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_96 = FixedWidthBucket::<96, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_128 = FixedWidthBucket::<128, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_160 = FixedWidthBucket::<160, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_192 = FixedWidthBucket::<192, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_224 = FixedWidthBucket::<224, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_256 = FixedWidthBucket::<256, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_384 = FixedWidthBucket::<384, M>::new(needle, needle_bitmask, &opts);
-    let mut bucket_size_512 = FixedWidthBucket::<512, M>::new(needle, needle_bitmask, &opts);
+    let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_12 = FixedWidthBucket::<12, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_16 = FixedWidthBucket::<16, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_20 = FixedWidthBucket::<20, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_24 = FixedWidthBucket::<24, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_32 = FixedWidthBucket::<32, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_48 = FixedWidthBucket::<48, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_64 = FixedWidthBucket::<64, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_96 = FixedWidthBucket::<96, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_128 = FixedWidthBucket::<128, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_160 = FixedWidthBucket::<160, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_192 = FixedWidthBucket::<192, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_224 = FixedWidthBucket::<224, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_256 = FixedWidthBucket::<256, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_384 = FixedWidthBucket::<384, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_512 = FixedWidthBucket::<512, M>::new(needle, needle_bitmask, &config);
 
     // If max_typos is set, we can ignore any haystacks that are shorter than the needle
     // minus the max typos, since it's impossible for them to match
-    let min_haystack_len = opts
+    let min_haystack_len = config
         .max_typos
         .map(|max| needle.len() - (max as usize))
         .unwrap_or(0);
@@ -96,11 +96,11 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
         }
         // fallback to greedy matching
         if match_too_large(needle, haystack) {
-            let (score, _) = match_greedy(needle, haystack);
+            let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
             matches.append(Match {
-                index_in_haystack: i,
+                index: i,
                 score,
-                exact: false,
+                exact,
             });
             continue;
         }
@@ -127,11 +127,11 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
             // fallback to greedy matching
             _ => {
-                let (score, _) = match_greedy(needle, haystack);
+                let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
                 matches.append(Match {
-                    index_in_haystack: i,
+                    index: i,
                     score,
-                    exact: false,
+                    exact,
                 });
                 continue;
             }
@@ -167,19 +167,17 @@ mod tests {
         let needle = "deadbe";
         let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
 
-        let matches = match_list(
-            needle,
-            &haystack,
-            Options {
-                max_typos: None,
-                ..Options::default()
-            },
-        );
+        let config = Config {
+            max_typos: None,
+            ..Config::default()
+        };
+        let matches = match_list(needle, &haystack, config);
+
         assert_eq!(matches.len(), 4);
-        assert_eq!(matches[0].index_in_haystack, 3);
-        assert_eq!(matches[1].index_in_haystack, 0);
-        assert_eq!(matches[2].index_in_haystack, 2);
-        assert_eq!(matches[3].index_in_haystack, 1);
+        assert_eq!(matches[0].index, 3);
+        assert_eq!(matches[1].index, 0);
+        assert_eq!(matches[2].index, 2);
+        assert_eq!(matches[3].index, 1);
     }
 
     #[test]
@@ -190,9 +188,9 @@ mod tests {
         let matches = match_list(
             needle,
             &haystack,
-            Options {
+            Config {
                 max_typos: Some(0),
-                ..Options::default()
+                ..Config::default()
             },
         );
         assert_eq!(matches.len(), 3);
@@ -203,13 +201,13 @@ mod tests {
         let needle = "deadbe";
         let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
 
-        let matches = match_list(needle, &haystack, Options::default());
+        let matches = match_list(needle, &haystack, Config::default());
 
         let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
         assert_eq!(exact_matches.len(), 1);
-        assert_eq!(exact_matches[0].index_in_haystack, 3);
+        assert_eq!(exact_matches[0].index, 3);
         for m in &exact_matches {
-            assert_eq!(haystack[m.index_in_haystack as usize], needle)
+            assert_eq!(haystack[m.index as usize], needle)
         }
     }
 
@@ -226,12 +224,12 @@ mod tests {
             "deadbe",
         ];
 
-        let matches = match_list(needle, &haystack, Options::default());
+        let matches = match_list(needle, &haystack, Config::default());
 
         let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
         assert_eq!(exact_matches.len(), 4);
         for m in &exact_matches {
-            assert_eq!(haystack[m.index_in_haystack as usize], needle)
+            assert_eq!(haystack[m.index as usize], needle)
         }
     }
 }
