@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::prefilter::bitmask::string_to_bitmask_simd;
-use crate::prefilter::memchr;
+use crate::prefilter::{prefilter, prefilter_with_typo, string_to_bitmask};
 use crate::smith_waterman::simd::{smith_waterman, typos_from_score_matrix};
 use crate::{Config, Match, Scoring};
 
@@ -69,18 +68,16 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
     pub fn add_haystack(&mut self, matches: &mut M, haystack: &'a str, idx: u32) {
         if !matches!(self.prefilter, PrefilterMethod::None) {
             let matched = match (self.prefilter, self.max_typos) {
-                (PrefilterMethod::Memchr, Some(0)) => memchr::prefilter(self.needle, haystack),
-                (PrefilterMethod::Memchr, Some(1)) => {
-                    memchr::prefilter_with_typo(self.needle, haystack)
-                }
+                (PrefilterMethod::Memchr, Some(0)) => prefilter(self.needle, haystack),
+                (PrefilterMethod::Memchr, Some(1)) => prefilter_with_typo(self.needle, haystack),
 
                 (PrefilterMethod::Bitmask, Some(0)) => {
-                    self.needle_bitmask & string_to_bitmask_simd(haystack.as_bytes())
+                    self.needle_bitmask & string_to_bitmask(haystack.as_bytes())
                         == self.needle_bitmask
                 }
                 // TODO: skip this when typos > 2?
                 (PrefilterMethod::Bitmask, Some(max)) => {
-                    (self.needle_bitmask & string_to_bitmask_simd(haystack.as_bytes())
+                    (self.needle_bitmask & string_to_bitmask(haystack.as_bytes())
                         ^ self.needle_bitmask)
                         .count_ones()
                         <= max as u32
