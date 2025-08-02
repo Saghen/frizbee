@@ -1,17 +1,7 @@
 use std::simd::{num::SimdUint, LaneCount, Simd, SupportedLaneCount};
 
-use multiversion::multiversion;
-
 #[inline(never)]
-#[multiversion(targets(
-    // x86-64-v4 without lahfsahf
-    "x86_64+avx512f+avx512bw+avx512cd+avx512dq+avx512vl+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
-    // x86-64-v3 without lahfsahf
-    "x86_64+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
-    // x86-64-v2 without lahfsahf
-    "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
-))]
-pub fn interleave_simd<const W: usize, const L: usize>(strs: [&str; L]) -> [Simd<u16, L>; W]
+pub fn interleave<const W: usize, const L: usize>(strs: [&str; L]) -> [Simd<u16, L>; W]
 where
     LaneCount<L>: SupportedLaneCount,
 {
@@ -29,7 +19,7 @@ where
         let offset = chunk_idx * L;
 
         let simds = to_simd::<W, L>(strs, offset);
-        let interleaved_chunk = interleave_simd_fixed::<L>(simds);
+        let interleaved_chunk = interleave_chunk::<L>(simds);
 
         if offset + L > W {
             interleaved[offset..W].copy_from_slice(&interleaved_chunk[0..(W - offset)]);
@@ -51,8 +41,8 @@ where
     })
 }
 
-#[inline(always)]
-fn interleave_simd_fixed<const L: usize>(mut simds: [Simd<u16, L>; L]) -> [Simd<u16, L>; L]
+#[inline(never)]
+pub fn interleave_chunk<const L: usize>(mut simds: [Simd<u16, L>; L]) -> [Simd<u16, L>; L]
 where
     LaneCount<L>: SupportedLaneCount,
 {
@@ -89,7 +79,7 @@ where
 mod tests {
     use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-    use super::interleave_simd;
+    use super::interleave;
 
     fn assert_matrix_eq<const L: usize, const W: usize>(a: [Simd<u16, L>; W], b: [[u8; L]; W])
     where
@@ -107,14 +97,14 @@ mod tests {
     #[test]
     fn test_interleave_simd_2() {
         let strs = ["ab", "cd"];
-        let interleaved = interleave_simd::<2, 2>(strs);
+        let interleaved = interleave::<2, 2>(strs);
         assert_matrix_eq(interleaved, [[b'a', b'c'], [b'b', b'd']]);
     }
 
     #[test]
     fn test_interleave_simd_chunks_2() {
         let strs = ["abcd", "efgh"];
-        let interleaved = interleave_simd::<4, 2>(strs);
+        let interleaved = interleave::<4, 2>(strs);
         assert_matrix_eq(
             interleaved,
             [[b'a', b'e'], [b'b', b'f'], [b'c', b'g'], [b'd', b'h']],
@@ -124,7 +114,7 @@ mod tests {
     #[test]
     fn test_interleave_simd_4() {
         let strs = ["abcd", "efgh", "ijkl", "mnop"];
-        let interleaved = interleave_simd::<4, 4>(strs);
+        let interleaved = interleave::<4, 4>(strs);
         assert_matrix_eq(
             interleaved,
             [
@@ -140,7 +130,7 @@ mod tests {
     #[rustfmt::skip]
     fn test_interleave_simd_8() {
         let strs = ["abcdefgh", "ijklmnop", "qrstuvwx", "yzABCDEF", "GHIJKLMN", "OPQRSTUV", "WXYZ1234", "56789012"];
-        let interleaved = interleave_simd::<8, 8>(strs);
+        let interleaved = interleave::<8, 8>(strs);
 
         assert_matrix_eq(
             interleaved,
