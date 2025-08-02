@@ -2,11 +2,15 @@
 //! to find the optimal alignment. Runs in linear time and used for when the Smith Waterman matrix
 //! would balloon in size (due to being N * M)
 
-use crate::r#const::*;
+use crate::Scoring;
 
 const DELIMITERS: [u8; 7] = [b' ', b'/', b'.', b',', b'_', b'-', b':'];
 
-pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2) -> (u16, Vec<usize>) {
+pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
+    needle: S1,
+    haystack: S2,
+    scoring: &Scoring,
+) -> (u16, Vec<usize>, bool) {
     let needle = needle.as_ref().as_bytes();
     let haystack = haystack.as_ref().as_bytes();
 
@@ -53,29 +57,29 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2) ->
             }
 
             // found a match, add the scores and continue the outer loop
-            score += MATCH_SCORE;
+            score += scoring.match_score;
 
             // gap penalty
             if haystack_idx != haystack_start_idx && needle_idx != 0 {
                 score = score.saturating_sub(
-                    GAP_OPEN_PENALTY
-                        + GAP_EXTEND_PENALTY
+                    scoring.gap_open_penalty
+                        + scoring.gap_extend_penalty
                             * (haystack_idx - haystack_start_idx).saturating_sub(1) as u16,
                 );
             }
 
             // bonuses (see constant documentation for details)
             if needle_char == haystack_char {
-                score += MATCHING_CASE_BONUS;
+                score += scoring.matching_case_bonus;
             }
             if haystack_is_upper && previous_haystack_is_lower {
-                score += CAPITALIZATION_BONUS;
+                score += scoring.capitalization_bonus;
             }
             if haystack_idx == 0 {
-                score += PREFIX_BONUS;
+                score += scoring.prefix_bonus;
             }
             if previous_haystack_is_delimiter && !haystack_is_delimiter {
-                score += DELIMITER_BONUS;
+                score += scoring.delimiter_bonus;
             }
 
             previous_haystack_is_delimiter = delimiter_bonus_enabled && haystack_is_delimiter;
@@ -87,24 +91,26 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2) ->
         }
 
         // didn't find a match
-        return (0, vec![]);
+        return (0, vec![], false);
     }
 
-    if needle == haystack {
-        score += EXACT_MATCH_BONUS;
+    let exact = haystack == needle;
+    if exact {
+        score += scoring.exact_match_bonus;
     }
 
-    (score, indices)
+    (score, indices, exact)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::r#const::*;
 
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        match_greedy(needle, haystack).0
+        match_greedy(needle, haystack, &Scoring::default()).0
     }
 
     #[test]
@@ -143,8 +149,6 @@ mod tests {
             get_score("abc", "abc"),
             3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
-        assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
-        // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]

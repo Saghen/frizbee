@@ -4,7 +4,7 @@ use crate::{
     smith_waterman::simd::{
         smith_waterman_inner, typos_from_score_matrix, HaystackChar, NeedleChar,
     },
-    Match,
+    Match, Scoring,
 };
 
 pub(crate) trait IncrementalBucketTrait {
@@ -14,6 +14,7 @@ pub(crate) trait IncrementalBucketTrait {
         new_needle_chars: &[u8],
         matches: &mut Vec<Match>,
         max_typos: Option<u16>,
+        scoring: &Scoring,
     );
 }
 
@@ -52,6 +53,7 @@ where
         new_needle_chars: &[u8],
         matches: &mut Vec<Match>,
         max_typos: Option<u16>,
+        scoring: &Scoring,
     ) {
         let new_needle_chars = new_needle_chars
             .iter()
@@ -86,6 +88,7 @@ where
                 &self.haystacks,
                 prev_score_col,
                 curr_score_col,
+                scoring,
             );
         }
 
@@ -95,16 +98,7 @@ where
                 all_time_max_score = score.simd_max(all_time_max_score);
             }
         }
-
-        // TODO: DRY w/ smith_waterman
-        let scores: [u16; L] = std::array::from_fn(|i| {
-            all_time_max_score[i].into()
-            // TODO: exact match bonus - this is going to be tricky because raw haystacks aren't
-            // currently stored. perhaps simd the comparison?
-            // if haystacks[i] == needle_str {
-            //     score += EXACT_MATCH_BONUS;
-            // }
-        });
+        let scores: [u16; L] = all_time_max_score.to_array();
 
         // TODO: typos
         let typos = max_typos
@@ -120,7 +114,7 @@ where
 
             let score_idx = self.idxs[idx];
             matches.push(Match {
-                index_in_haystack: score_idx,
+                index: score_idx,
                 score: scores[idx],
                 exact: false,
             });

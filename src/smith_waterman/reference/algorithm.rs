@@ -1,6 +1,6 @@
 use crate::r#const::*;
 
-pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
+pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool) {
     let needle = needle.as_bytes();
     let haystack = haystack.as_bytes();
 
@@ -101,23 +101,33 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>) {
         }
     }
 
-    let max_score = if haystack == needle {
-        all_time_max_score + EXACT_MATCH_BONUS
-    } else {
-        all_time_max_score
-    };
+    let mut max_score = all_time_max_score;
+    let exact = haystack == needle;
+    if exact {
+        max_score += EXACT_MATCH_BONUS;
+    }
 
-    (max_score, score_matrix)
+    (max_score, score_matrix, exact)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{smith_waterman::simd::smith_waterman as smith_waterman_simd, Scoring};
 
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        smith_waterman(needle, haystack).0
+        let ref_score = smith_waterman(needle, haystack).0;
+        let simd_score =
+            smith_waterman_simd::<16, 1>(needle, &[haystack], None, &Scoring::default()).0[0];
+
+        assert_eq!(
+            ref_score, simd_score,
+            "Reference and SIMD scores don't match"
+        );
+
+        ref_score
     }
 
     #[test]
@@ -144,7 +154,7 @@ mod tests {
             3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
         assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
-        // assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+        assert_eq!(get_score("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]

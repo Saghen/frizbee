@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 
 use super::{bucket::IncrementalBucketTrait, bucket_collection::IncrementalBucketCollection};
-use crate::{Match, Options};
+use crate::{Config, Match};
 
 pub struct IncrementalMatcher {
     needle: Option<String>,
@@ -86,7 +86,7 @@ impl IncrementalMatcher {
         }
     }
 
-    pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, opts: Options) -> Vec<Match> {
+    pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, config: Config) -> Vec<Match> {
         let needle = needle.as_ref();
         if needle.is_empty() {
             todo!();
@@ -107,10 +107,10 @@ impl IncrementalMatcher {
             })
             .unwrap_or(0);
 
-        self.process(common_prefix_len, needle, &mut matches, opts);
+        self.process(common_prefix_len, needle, &mut matches, config.clone());
         self.needle = Some(needle.to_owned());
 
-        if opts.sort {
+        if config.sort {
             matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
         }
 
@@ -122,12 +122,18 @@ impl IncrementalMatcher {
         prefix_to_keep: usize,
         needle: &str,
         matches: &mut Vec<Match>,
-        opts: Options,
+        config: Config,
     ) {
         let needle = &needle.as_bytes()[prefix_to_keep..];
 
         for bucket in self.buckets.iter_mut() {
-            bucket.process(prefix_to_keep, needle, matches, opts.max_typos);
+            bucket.process(
+                prefix_to_keep,
+                needle,
+                matches,
+                config.max_typos,
+                &config.scoring,
+            );
         }
     }
 }
@@ -141,7 +147,7 @@ mod tests {
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
         let mut matcher = IncrementalMatcher::new(&[haystack]);
-        matcher.match_needle(needle, Options::default())[0].score
+        matcher.match_needle(needle, Config::default())[0].score
     }
 
     #[test]

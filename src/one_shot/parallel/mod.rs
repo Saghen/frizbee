@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::match_list;
 use crate::one_shot::matcher::match_list_impl;
-use crate::{Match, Options};
+use crate::{Config, Match};
 
 mod thread_slice;
 mod threaded_vec;
@@ -19,20 +19,20 @@ use threaded_vec::ThreadedVec;
 pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
     haystacks: &[S2],
-    opts: Options,
+    config: Config,
     max_threads: usize,
 ) -> Vec<Match> {
-    let thread_count = choose_thread_count(haystacks.len(), opts.max_typos).clamp(1, max_threads);
+    let thread_count = choose_thread_count(haystacks.len(), config.max_typos).clamp(1, max_threads);
     if thread_count == 1 {
-        return match_list(needle, haystacks, opts);
+        return match_list(needle, haystacks, config);
     }
 
-    let mut matches = match opts.max_typos {
-        None => match_list_parallel_fixed(needle, haystacks, opts, thread_count),
-        _ => match_list_parallel_expandable(needle, haystacks, opts, thread_count),
+    let mut matches = match config.max_typos {
+        None => match_list_parallel_fixed(needle, haystacks, config.clone(), thread_count),
+        _ => match_list_parallel_expandable(needle, haystacks, config.clone(), thread_count),
     };
 
-    if opts.sort {
+    if config.sort {
         #[cfg(feature = "parallel_sort")]
         {
             use rayon::prelude::*;
@@ -50,10 +50,10 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
     haystacks: &[S2],
-    opts: Options,
+    config: Config,
     thread_count: usize,
 ) -> Vec<Match> {
-    assert!(opts.max_typos.is_none(), "max_typos must be None");
+    assert!(config.max_typos.is_none(), "max_typos must be None");
 
     let mut matches = Vec::with_capacity(haystacks.len());
     #[allow(clippy::uninit_vec)]
@@ -73,6 +73,7 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 
             let needle = needle.as_ref().to_owned();
             let mut thread_slice = ThreadSlice::new(matches_slice);
+            let opts = config.clone();
             s.spawn(move || {
                 match_list_impl(
                     needle,
@@ -96,10 +97,10 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
     haystacks: &[S2],
-    opts: Options,
+    config: Config,
     thread_count: usize,
 ) -> Vec<Match> {
-    assert!(opts.max_typos.is_some(), "max_typos must be Some");
+    assert!(config.max_typos.is_some(), "max_typos must be Some");
 
     let batch_size = 1024;
     let matches = Arc::new(ThreadedVec::new(batch_size, thread_count));
@@ -111,6 +112,7 @@ fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 
             let needle = needle.as_ref().to_owned();
             let mut matches = matches.clone();
+            let opts = config.clone();
             s.spawn(move || {
                 match_list_impl(
                     needle,

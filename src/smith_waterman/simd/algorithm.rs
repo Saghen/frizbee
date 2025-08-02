@@ -1,6 +1,4 @@
 use multiversion::multiversion;
-
-use crate::r#const::*;
 use crate::smith_waterman::simd::interleave_simd;
 use std::ops::Not;
 use std::simd::cmp::*;
@@ -8,6 +6,7 @@ use std::simd::num::SimdUint;
 use std::simd::{Mask, Simd};
 
 use super::{HaystackChar, NeedleChar};
+use crate::Scoring;
 
 #[inline(always)]
 pub(crate) fn smith_waterman_inner<const L: usize>(
@@ -17,6 +16,7 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
     haystack: &[HaystackChar<L>],
     prev_score_col: Option<&[Simd<u16, L>]>,
     curr_score_col: &mut [Simd<u16, L>],
+    scoring: &Scoring,
 ) where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
@@ -50,52 +50,55 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
                 let capitalization_bonus_mask: Mask<i16, L> =
                     haystack_char.is_capital_mask & prev_haystack_char.is_lower_mask;
                 let capitalization_bonus = capitalization_bonus_mask
-                    .select(Simd::splat(CAPITALIZATION_BONUS), Simd::splat(0));
+                    .select(Simd::splat(scoring.capitalization_bonus), Simd::splat(0));
 
                 let delimiter_bonus_mask: Mask<i16, L> = prev_haystack_char.is_delimiter_mask
                     & delimiter_bonus_enabled_mask
                     & !haystack_char.is_delimiter_mask;
-                let delimiter_bonus =
-                    delimiter_bonus_mask.select(Simd::splat(DELIMITER_BONUS), Simd::splat(0));
+                let delimiter_bonus = delimiter_bonus_mask
+                    .select(Simd::splat(scoring.delimiter_bonus), Simd::splat(0));
 
-                capitalization_bonus + delimiter_bonus + Simd::splat(MATCH_SCORE)
+                capitalization_bonus + delimiter_bonus + Simd::splat(scoring.match_score)
             };
 
             if haystack_idx == 1 {
-                // If the first char is not a letter, apply the prefix bonus on the second char
+                // If the first char is not a letter, apply the offset prefix bonus on the second char
                 // if we didn't match on the first char
-                // I.e. `a` matching on `-a` would still get the prefix bonus
-                // but  `b` matching on `ab` would not get the prefix bonus
+                // I.e. `a` matching on `-a` would get the offset prefix bonus
+                // but  `b` matching on `ab` would not get the offset prefix bonus
                 let offset_prefix_mask = !(haystack[0].is_lower_mask | haystack[0].is_capital_mask)
                     & diag.simd_eq(Simd::splat(0));
 
-                offset_prefix_mask
-                    .select(Simd::splat(OFFSET_PREFIX_BONUS + MATCH_SCORE), match_score)
+                offset_prefix_mask.select(
+                    Simd::splat(scoring.offset_prefix_bonus + scoring.match_score),
+                    match_score,
+                )
             } else {
                 match_score
             }
         } else {
             // Give a bonus for prefix matches
-            Simd::splat(PREFIX_BONUS + MATCH_SCORE)
+            Simd::splat(scoring.prefix_bonus + scoring.match_score)
         };
 
         let diag_score = match_mask.select(
-            diag + matched_casing_mask.select(Simd::splat(MATCHING_CASE_BONUS), Simd::splat(0))
+            diag + matched_casing_mask
+                .select(Simd::splat(scoring.matching_case_bonus), Simd::splat(0))
                 + match_score,
-            diag.saturating_sub(Simd::splat(MISMATCH_PENALTY)),
+            diag.saturating_sub(Simd::splat(scoring.mismatch_penalty)),
         );
 
         // Load and calculate up scores (skipping char in haystack)
         let up_gap_penalty = up_gap_penalty_mask.select(
-            Simd::splat(GAP_OPEN_PENALTY),
-            Simd::splat(GAP_EXTEND_PENALTY),
+            Simd::splat(scoring.gap_open_penalty),
+            Simd::splat(scoring.gap_extend_penalty),
         );
         let up_score = up_score_simd.saturating_sub(up_gap_penalty);
 
         // Load and calculate left scores (skipping char in needle)
         let left_gap_penalty = left_gap_penalty_mask.select(
-            Simd::splat(GAP_OPEN_PENALTY),
-            Simd::splat(GAP_EXTEND_PENALTY),
+            Simd::splat(scoring.gap_open_penalty),
+            Simd::splat(scoring.gap_extend_penalty),
         );
         let left_score = left.saturating_sub(left_gap_penalty);
 
@@ -125,9 +128,10 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
     "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
 ))]
 pub fn smith_waterman<const W: usize, const L: usize>(
-    needle: &str,
-    haystacks: &[&str; L],
+    needle_str: &str,
+    haystack_strs: &[&str; L],
     max_typos: Option<u16>,
+    scoring: &Scoring,
 ) -> ([u16; L], Vec<[Simd<u16, L>; W]>, [bool; L])
 where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
@@ -176,10 +180,9 @@ where
             &haystack,
             prev_score_col,
             curr_score_col,
+            scoring,
         );
     }
-
-    let exact_matches = std::array::from_fn(|i| haystacks[i] == needle_str);
 
     let mut all_time_max_score = Simd::splat(0);
     for score_col in score_matrix.iter() {
@@ -188,25 +191,28 @@ where
         }
     }
 
-    let max_scores_vec = std::array::from_fn(|i| {
+    let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
+
+    let max_scores = std::array::from_fn(|i| {
         let mut score = all_time_max_score[i];
         if exact_matches[i] {
-            score += EXACT_MATCH_BONUS;
+            score += scoring.exact_match_bonus;
         }
         score
     });
 
-    (max_scores_vec, score_matrix, exact_matches)
+    (max_scores, score_matrix, exact_matches)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::r#const::*;
 
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
-        smith_waterman::<16, 1>(needle, &[haystack; 1], None).0[0]
+        smith_waterman::<16, 1>(needle, &[haystack], None, &Scoring::default()).0[0]
     }
 
     #[test]
@@ -241,8 +247,6 @@ mod tests {
             get_score("abc", "abc"),
             3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
         );
-        assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
-        assert_eq!(get_score("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
     }
 
     #[test]
