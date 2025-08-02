@@ -2,19 +2,39 @@ name: Test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+          - os: ubuntu-latest
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+
+      - name: Install ARM64 target
+        if: matrix.arch == 'arm64'
+        run: rustup target add aarch64-unknown-linux-gnu
+
+      - name: Build
+        if: matrix.arch == 'x64'
+        run: cargo build --verbose
+
+      - name: Build (ARM64)
+        if: matrix.arch == 'arm64'
+        run: cargo build --verbose --target aarch64-unknown-linux-gnu
+
+      - name: Run tests
+        if: matrix.arch == 'x64'
+        run: cargo test --verbose
