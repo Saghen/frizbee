@@ -33,7 +33,9 @@ fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m
 
             if load_len == 16 {
                 // Full load - most common case
+                // u8x16 = 128 bit
                 let bytes = _mm_loadu_si128(str_bytes[i][offset..].as_ptr() as *const __m128i);
+                // u8x16 -> u16x16
                 _mm256_cvtepu8_epi16(bytes)
             } else {
                 // Partial load - use masked load if available
@@ -54,7 +56,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 16]) -> [Simd<u16, 16>; 16] {
     unsafe {
         // Stage 1: distance = 8
         for i in 0..8 {
-            let (lo, hi) = interleave_256(simds[i], simds[i + 8]);
+            let (lo, hi) = interleave_u16x16(simds[i], simds[i + 8]);
             simds[i] = lo;
             simds[i + 8] = hi;
         }
@@ -62,7 +64,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 16]) -> [Simd<u16, 16>; 16] {
         // Stage 2: distance = 4
         for base in (0..16).step_by(8) {
             for i in 0..4 {
-                let (lo, hi) = interleave_256(simds[base + i], simds[base + i + 4]);
+                let (lo, hi) = interleave_u16x16(simds[base + i], simds[base + i + 4]);
                 simds[base + i] = lo;
                 simds[base + i + 4] = hi;
             }
@@ -71,7 +73,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 16]) -> [Simd<u16, 16>; 16] {
         // Stage 3: distance = 2
         for base in (0..16).step_by(4) {
             for i in 0..2 {
-                let (lo, hi) = interleave_256(simds[base + i], simds[base + i + 2]);
+                let (lo, hi) = interleave_u16x16(simds[base + i], simds[base + i + 2]);
                 simds[base + i] = lo;
                 simds[base + i + 2] = hi;
             }
@@ -79,7 +81,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 16]) -> [Simd<u16, 16>; 16] {
 
         // Stage 4: distance = 1
         for base in (0..16).step_by(2) {
-            let (lo, hi) = interleave_256(simds[base], simds[base + 1]);
+            let (lo, hi) = interleave_u16x16(simds[base], simds[base + 1]);
             simds[base] = lo;
             simds[base + 1] = hi;
         }
@@ -88,7 +90,7 @@ pub fn interleave_chunk(mut simds: [__m256i; 16]) -> [Simd<u16, 16>; 16] {
     }
 }
 
-unsafe fn interleave_256(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
+unsafe fn interleave_u16x16(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
     // Use vpunpcklwd and vpunpckhwd for 16-bit interleaving
     let lo = _mm256_unpacklo_epi16(a, b);
     let hi = _mm256_unpackhi_epi16(a, b);
@@ -107,13 +109,13 @@ mod tests {
         simd::Simd,
     };
 
-    use super::interleave_256;
+    use super::interleave_u16x16;
 
     #[test]
     fn test_interleave_avx2() {
         let a = unsafe { _mm256_loadu_si256([65u16; 16].as_ptr() as *const __m256i) };
         let b = unsafe { _mm256_loadu_si256([66u16; 16].as_ptr() as *const __m256i) };
-        let (a, b) = unsafe { interleave_256(a, b) };
+        let (a, b) = unsafe { interleave_u16x16(a, b) };
         let a = unsafe { std::mem::transmute::<__m256i, Simd<u16, 16>>(a) };
         let b = unsafe { std::mem::transmute::<__m256i, Simd<u16, 16>>(b) };
         assert_eq!(
