@@ -1,11 +1,10 @@
 use multiversion::multiversion;
-use crate::smith_waterman::simd::interleave_simd;
 use std::ops::Not;
 use std::simd::cmp::*;
 use std::simd::num::SimdUint;
 use std::simd::{Mask, Simd};
 
-use super::{HaystackChar, NeedleChar};
+use super::{interleave, HaystackChar, NeedleChar};
 use crate::Scoring;
 
 #[inline(always)]
@@ -136,12 +135,8 @@ pub fn smith_waterman<const W: usize, const L: usize>(
 where
     std::simd::LaneCount<L>: std::simd::SupportedLaneCount,
 {
-    let needle_str = needle;
-    let needle = needle.as_bytes();
-
-    // TODO: convert to HaystackChar in interleave_simd
-    let haystack = interleave_simd::<W, L>(*haystacks);
-    let haystack: [HaystackChar<L>; W] = std::array::from_fn(|i| HaystackChar::new(haystack[i]));
+    let needle = needle_str.as_bytes();
+    let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
 
     // State
     let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
@@ -177,7 +172,7 @@ where
             haystack_start,
             haystack_end,
             needle_char,
-            &haystack,
+            &haystacks,
             prev_score_col,
             curr_score_col,
             scoring,
