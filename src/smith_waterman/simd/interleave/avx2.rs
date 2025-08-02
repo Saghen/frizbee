@@ -25,8 +25,9 @@ fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m
     unsafe {
         std::array::from_fn(|i| {
             let len = str_lens[i];
+            // beyond length
+            // NOTE: we could optimize this away if (max_length - min_length) < 16
             if offset >= len {
-                // Beyond string length - return zeros
                 return _mm_setzero_si128();
             }
 
@@ -34,11 +35,8 @@ fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m
             let load_len = remaining.min(16);
 
             if load_len == 16 {
-                // Full load - most common case
-                // u8x16 = 128 bit
                 _mm_loadu_si128(str_bytes[i][offset..].as_ptr() as *const __m128i)
             } else {
-                // Partial load - use masked load if available
                 let mut data = _mm_setzero_si128();
                 std::ptr::copy_nonoverlapping(
                     str_bytes[i][offset..].as_ptr(),
@@ -86,8 +84,10 @@ fn interleave_chunk(mut simds: [__m128i; 16]) -> [Simd<u16, 16>; 16] {
             simds[base + 1] = hi;
         }
 
+        let simds = std::mem::transmute::<[__m128i; 16], [Simd<u8, 16>; 16]>(simds);
+
         // Convert u8x16 to u16x16
-        std::mem::transmute::<[__m128i; 16], [Simd<u8, 16>; 16]>(simds).map(|s| s.cast::<u16>())
+        simds.map(|s| s.cast::<u16>())
     }
 }
 
