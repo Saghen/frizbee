@@ -2,7 +2,7 @@ use super::bucket::FixedWidthBucket;
 use super::Appendable;
 
 use crate::one_shot::match_too_large;
-use crate::prefilter::bitmask::string_to_bitmask;
+use crate::prefilter::string_to_bitmask;
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Config, Match};
 
