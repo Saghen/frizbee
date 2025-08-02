@@ -2,6 +2,7 @@
 #![feature(array_repeat)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use frizbee::smith_waterman::simd::{avx2::interleave_simd_avx2, avx512::interleave_simd_avx512};
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -27,6 +28,28 @@ where
 
 fn criterion_benchmark(c: &mut Criterion) {
     let needle = "deadbeef";
+
+    c.bench_function("interleave simd generic - 32", |b| {
+        b.iter(|| {
+            interleave_simd::<32, 32>(black_box(std::array::repeat(
+                "testtesttesttesttesttesttesttest",
+            )))
+        })
+    });
+    c.bench_function("interleave simd AVX512 - 32", |b| {
+        b.iter(|| {
+            interleave_simd_avx512::<32>(black_box(std::array::repeat(
+                "ttesttesttesttestesttesttesttest",
+            )))
+        })
+    });
+
+    c.bench_function("interleave simd generic - 16", |b| {
+        b.iter(|| interleave_simd::<16, 16>(black_box(std::array::repeat("testtesttesttest"))))
+    });
+    c.bench_function("interleave simd AVX2 - 16", |b| {
+        b.iter(|| interleave_simd_avx2::<16>(black_box(std::array::repeat("testtesttesttest"))))
+    });
 
     for (name, (match_percentage, partial_match_percentage)) in [
         ("Partial Match", (0.05, 0.20)),

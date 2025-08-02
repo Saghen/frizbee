@@ -2,6 +2,11 @@ use std::simd::{num::SimdUint, LaneCount, Simd, SupportedLaneCount};
 
 use multiversion::multiversion;
 
+use crate::smith_waterman::simd::{avx2::interleave_simd_avx2, avx512::interleave_simd_avx512};
+
+pub mod avx2;
+pub mod avx512;
+
 #[inline(never)]
 #[multiversion(targets(
     // x86-64-v4 without lahfsahf
@@ -15,6 +20,22 @@ pub fn interleave_simd<const W: usize, const L: usize>(strs: [&str; L]) -> [Simd
 where
     LaneCount<L>: SupportedLaneCount,
 {
+    if L == 32 && is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bw") {
+        return unsafe {
+            let strs_ptr = &strs as *const [&str; L] as *const [&str; 32];
+            let result = interleave_simd_avx512::<W>(*strs_ptr);
+            let result_ptr = &result as *const [Simd<u16, 32>; W] as *const [Simd<u16, L>; W];
+            std::ptr::read(result_ptr)
+        };
+    } else if L == 16 && is_x86_feature_detected!("avx2") {
+        return unsafe {
+            let strs_ptr = &strs as *const [&str; L] as *const [&str; 16];
+            let result = interleave_simd_avx2::<W>(*strs_ptr);
+            let result_ptr = &result as *const [Simd<u16, 16>; W] as *const [Simd<u16, L>; W];
+            std::ptr::read(result_ptr)
+        };
+    }
+
     // Ensure the strings are all the length of W
     let strs = std::array::from_fn(|i| {
         let mut tmp = [0u8; W];
@@ -51,8 +72,8 @@ where
     })
 }
 
-#[inline(always)]
-fn interleave_simd_fixed<const L: usize>(mut simds: [Simd<u16, L>; L]) -> [Simd<u16, L>; L]
+#[inline(never)]
+pub fn interleave_simd_fixed<const L: usize>(mut simds: [Simd<u16, L>; L]) -> [Simd<u16, L>; L]
 where
     LaneCount<L>: SupportedLaneCount,
 {
