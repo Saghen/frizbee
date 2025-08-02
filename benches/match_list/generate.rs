@@ -26,32 +26,6 @@ pub struct HaystackGenerationOptions {
 }
 
 impl HaystackGenerationOptions {
-    pub fn get_permutations(
-        seed: u64,
-        match_percentage_steps: Vec<(f64, f64)>,
-        median_length_steps: Vec<usize>,
-        num_samples_steps: Vec<usize>,
-    ) -> Vec<Self> {
-        let mut permutations = Vec::new();
-
-        for &median_length in &median_length_steps {
-            for &(match_percentage, partial_match_percentage) in &match_percentage_steps {
-                for &num_samples in &num_samples_steps {
-                    permutations.push(Self {
-                        seed,
-                        partial_match_percentage,
-                        match_percentage,
-                        median_length,
-                        std_dev_length: median_length / 4,
-                        num_samples,
-                    });
-                }
-            }
-        }
-
-        permutations
-    }
-
     pub fn estimate_size(&self) -> u64 {
         (self.num_samples * self.median_length) as u64
     }
