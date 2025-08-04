@@ -1,3 +1,5 @@
+//! Reference implementation, without SIMD, for the smith waterman algorithm
+
 mod algorithm;
 mod indices;
 mod typos;

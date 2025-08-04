@@ -53,11 +53,11 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 
             max_typos: config.max_typos,
             scoring: config.scoring.clone(),
-            prefilter: match (config.prefilter, config.max_typos) {
-                (true, Some(0)) if W >= 24 => PrefilterMethod::Memchr,
-                (true, Some(1)) if W >= 20 => PrefilterMethod::Memchr,
-                // TODO: disable on long haystacks? arbitrarily picked 48 for now
-                (true, _) if W < 48 => PrefilterMethod::Bitmask,
+            prefilter: match (config.prefilter, config.max_typos, W) {
+                (true, Some(0), 48..) => PrefilterMethod::Memchr,
+                (true, Some(1), 20..) => PrefilterMethod::Memchr,
+                // TODO: disable on long haystacks? arbitrarily picked 64 for now
+                (true, _, ..64) => PrefilterMethod::Bitmask,
                 _ => PrefilterMethod::None,
             },
 

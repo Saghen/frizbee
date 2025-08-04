@@ -9,8 +9,8 @@ use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 
 mod r#const;
-pub mod incremental;
-pub mod one_shot;
+mod incremental;
+mod one_shot;
 pub mod prefilter;
 pub mod smith_waterman;
 
