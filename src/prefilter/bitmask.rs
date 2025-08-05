@@ -1,3 +1,5 @@
+//! Kept for reference, but no longer used in the codebase due to poor performance without AVX512
+
 use std::simd::{cmp::SimdPartialOrd, num::SimdUint, Simd};
 
 use multiversion::multiversion;
@@ -9,6 +11,8 @@ const LANES: usize = 8;
 /// the two bitmasks. The number of 1s in the resulting bitmask indicates the number of characters
 /// in the needle which are not in the haystack and the number of characters in the haystack which
 /// are not in the needle.
+///
+/// TODO: Only fast on AVX512
 #[multiversion(targets(
     // x86-64-v4 without lahfsahf
     "x86_64+avx512f+avx512bw+avx512cd+avx512dq+avx512vl+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
@@ -32,15 +36,15 @@ pub fn string_to_bitmask(s: &[u8]) -> u64 {
         // Convert to uppercase
         let is_lower =
             simd_chunk.simd_ge(Simd::splat(b'a')) & simd_chunk.simd_le(Simd::splat(b'z'));
-        let simd_upper = simd_chunk - is_lower.select(to_upperacse, zero);
+        let simd_chunk = simd_chunk - is_lower.select(to_upperacse, zero);
 
         // Check if characters are in the valid range [33, 90]
         let in_range =
-            simd_upper.simd_ge(Simd::splat(33u8)) & simd_upper.simd_le(Simd::splat(90u8));
+            simd_chunk.simd_ge(Simd::splat(32u8)) & simd_chunk.simd_le(Simd::splat(90u8));
 
         // Compute indices
         let indices = in_range.cast::<i64>().select(
-            one << (simd_upper - Simd::splat(33u8)).cast::<u64>(),
+            one << (simd_chunk - Simd::splat(32u8)).cast::<u64>(),
             zero_wide,
         );
 
@@ -52,9 +56,23 @@ pub fn string_to_bitmask(s: &[u8]) -> u64 {
     mask
 }
 
+pub fn string_to_bitmask_scalar(s: &[u8]) -> u64 {
+    let mut mask: u64 = 0;
+
+    for byte in s.iter() {
+        if byte.is_ascii_lowercase() {
+            mask |= 1u64 << (byte - 64);
+        } else if (32..=90).contains(byte) {
+            mask |= 1u64 << (byte - 32);
+        }
+    }
+
+    mask
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::string_to_bitmask;
 
     #[test]
     fn test_case_insensitive() {
@@ -68,7 +86,7 @@ mod tests {
     fn test_letters() {
         assert_eq!(
             string_to_bitmask("abC".as_bytes()),
-            0b0000000000000000000000000000011100000000000000000000000000000000
+            0b0000000000000000000000000000111000000000000000000000000000000000
         );
     }
 
@@ -76,7 +94,7 @@ mod tests {
     fn test_numbers() {
         assert_eq!(
             string_to_bitmask("123".as_bytes()),
-            0b00000000000000000000000000000000000000000001110000000000000000
+            0b00000000000000000000000000000000000000000011100000000000000000
         );
     }
 
@@ -84,7 +102,7 @@ mod tests {
     fn test_symbols() {
         assert_eq!(
             string_to_bitmask("!\"#$%&'()*+,-./".as_bytes()),
-            0b00000000000000000000000000000000000000000000000111111111111111
+            0b00000000000000000000000000000000000000000000001111111111111110
         );
     }
 }

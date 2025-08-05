@@ -61,7 +61,7 @@ Nucleo and FZF use a prefiltering step that removes any haystacks that do not in
 - [x] Multithreading
 - [ ] Calculate alignment directions during matrix building
   - Might speed up typo calculation
-- [ ] Prefix matching
+- [ ] Experiment with u8 for math, converting to u16 for score
 - [x] Drop u8 based scoring and double scoring to support longer fuzzy matches
   - Currently, alignment can be lost on longer matches causing us to mark them as having typos
 - [x] Incremental matching

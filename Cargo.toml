@@ -3,7 +3,7 @@ name = "frizbee"
 description = "Fast fuzzy matching via SIMD smith waterman, similar algorithm to FZF/FZY"
 license = "MIT"
 version = "0.5.0"
-edition = "2024"
+edition = "2021"
 repository = "https://github.com/saghen/frizbee"
 
 [profile.release]
@@ -19,6 +19,9 @@ rand_distr = "0.5.1"
 [[bench]]
 name = "lib"
 harness = false
+
+[lib]
+bench = false
 
 # [[bench]]
 # name = "smith_waterman_iai"

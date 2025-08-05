@@ -92,11 +92,11 @@ fn interleave_chunk(mut simds: [__m128i; 16]) -> [Simd<u16, 16>; 16] {
 }
 
 #[inline]
-unsafe fn interleave_u8x16(a: __m128i, b: __m128i) -> (__m128i, __m128i) {
+unsafe fn interleave_u8x16(a: __m128i, b: __m128i) -> (__m128i, __m128i) { unsafe {
     let low = _mm_unpacklo_epi8(a, b); // Interleave low 8 bytes
     let high = _mm_unpackhi_epi8(a, b); // Interleave high 8 bytes
     (low, high)
-}
+}}
 
 #[cfg(test)]
 mod tests {
