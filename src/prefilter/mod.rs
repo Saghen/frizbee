@@ -14,6 +14,7 @@
 pub mod bitmask;
 pub mod scalar;
 pub mod simd;
+#[cfg(target_arch = "x86_64")]
 pub mod x86_64;
 
 #[derive(Clone, Debug)]
@@ -39,7 +40,6 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         let has_avx2 = false;
 
         #[cfg(target_arch = "aarch64")]
-        #[target_feature(enable = "neon")]
         let has_neon = true;
         #[cfg(not(target_arch = "aarch64"))]
         let has_neon = false;
@@ -150,7 +150,7 @@ impl<'a, const W: usize> Prefilter<'a, W> {
 
     #[cfg(target_arch = "aarch64")]
     #[target_feature(enable = "neon")]
-    unsafe fn match_haystack_neon<Ordered: bool, CaseSensitive: bool>(
+    unsafe fn match_haystack_neon<const Ordered: bool, const CaseSensitive: bool>(
         &self,
         haystack: &[u8],
     ) -> bool {
