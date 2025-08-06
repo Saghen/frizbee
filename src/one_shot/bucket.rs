@@ -44,9 +44,11 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 
             max_typos: config.max_typos,
             scoring: config.scoring.clone(),
-            prefilter: config
-                .prefilter
-                .then_some(Prefilter::new(needle.as_bytes(), needle_cased)),
+            prefilter: (config.prefilter && config.max_typos.is_some()).then_some(Prefilter::new(
+                needle.as_bytes(),
+                needle_cased,
+                config.max_typos.unwrap_or(0),
+            )),
 
             _phantom: PhantomData,
         }
