@@ -19,56 +19,53 @@ pub unsafe fn match_haystack_unordered_typos_insensitive<const W: usize>(
     haystack: &[u8],
     max_typos: u16,
 ) -> bool {
-    unsafe {
-        let len = haystack.len();
+    let len = haystack.len();
 
-        let mut needle_iter = needle.iter().map(|&(c1, c2)| {
-            let c1 = _mm_set1_epi8(c1 as i8);
-            let c2 = _mm_set1_epi8(c2 as i8);
-            _mm_unpacklo_epi64(c1, c2)
-        });
-        let mut needle_char = needle_iter.next().unwrap();
+    let mut needle_iter = needle
+        .iter()
+        .map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
+    let mut needle_char = needle_iter.next().unwrap();
 
-        let mut typos = 0;
-        loop {
-            if typos > max_typos as usize {
-                return false;
-            }
+    let mut typos = 0;
+    loop {
+        if typos > max_typos as usize {
+            return false;
+        }
 
-            // TODO: this is slightly incorrect, because if we match on the third chunk,
-            // we would only scan from the third chunk onwards for the next needle. Technically,
-            // we should scan from the beginning of the haystack instead, but I believe the
-            // previous memchr implementation had the same bug.
-            for start in (0..W).step_by(16) {
-                let haystack_chunk = overlapping_load::<W>(haystack, start, len);
+        // TODO: this is slightly incorrect, because if we match on the third chunk,
+        // we would only scan from the third chunk onwards for the next needle. Technically,
+        // we should scan from the beginning of the haystack instead, but I believe the
+        // previous memchr implementation had the same bug.
+        for start in (0..W).step_by(16) {
+            let haystack_chunk = unsafe { overlapping_load::<W>(haystack, start, len) };
 
-                loop {
-                    // Check if any of the chars in the needle_char are in the haystack_chunk
-                    let cmp = _mm_cmpistri::<_SIDD_CMP_EQUAL_ANY>(needle_char, haystack_chunk);
+            loop {
+                if unsafe { _mm_movemask_epi8(_mm_cmpeq_epi8(needle_char.0, haystack_chunk)) } == 0
+                    && unsafe { _mm_movemask_epi8(_mm_cmpeq_epi8(needle_char.1, haystack_chunk)) }
+                        == 0
+                {
                     // No match, advance to next chunk
-                    if cmp == 16 {
-                        break;
-                    }
+                    break;
+                }
 
-                    // Progress to next needle char, if available
-                    if let Some(next_needle_char) = needle_iter.next() {
-                        needle_char = next_needle_char;
-                    } else {
-                        return true;
-                    }
+                // Progress to next needle char, if available
+                if let Some(next_needle_char) = needle_iter.next() {
+                    needle_char = next_needle_char;
+                } else {
+                    return true;
                 }
             }
+        }
 
-            typos += 1;
-            if typos > max_typos as usize {
-                return false;
-            }
+        typos += 1;
+        if typos > max_typos as usize {
+            return false;
+        }
 
-            if let Some(next_needle_char) = needle_iter.next() {
-                needle_char = next_needle_char;
-            } else {
-                return true;
-            }
+        if let Some(next_needle_char) = needle_iter.next() {
+            needle_char = next_needle_char;
+        } else {
+            return true;
         }
     }
 }

@@ -102,7 +102,7 @@ impl<'a, const W: usize> Prefilter<'a, W> {
             match haystack.len() {
                 0 => return true,
                 1..=7 => {
-                    return self.match_haystack_scalar::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
+                    return self.match_haystack_scalar::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack);
                 }
                 _ => {}
             }
@@ -141,11 +141,7 @@ impl<'a, const W: usize> Prefilter<'a, W> {
     }
 
     #[inline(always)]
-    pub(crate) fn match_haystack_simd<
-        const ORDERED: bool,
-        const CASE_SENSITIVE: bool,
-        const TYPOS: bool,
-    >(
+    fn match_haystack_simd<const ORDERED: bool, const CASE_SENSITIVE: bool, const TYPOS: bool>(
         &self,
         haystack: &[u8],
     ) -> bool {
@@ -173,7 +169,7 @@ impl<'a, const W: usize> Prefilter<'a, W> {
 
     #[cfg(target_arch = "x86_64")]
     #[inline(always)]
-    pub(crate) unsafe fn match_haystack_x86_64<
+    unsafe fn match_haystack_x86_64<
         const ORDERED: bool,
         const CASE_SENSITIVE: bool,
         const TYPOS: bool,
@@ -181,25 +177,31 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         &self,
         haystack: &[u8],
     ) -> bool {
-        match (ORDERED, CASE_SENSITIVE, TYPOS) {
-            (true, _, true) => panic!("ordered typos implementations are not yet available"),
-            (true, true, false) => x86_64::match_haystack::<W>(self.needle, haystack),
-            (true, false, false) => {
-                x86_64::match_haystack_insensitive::<W>(self.needle_cased, haystack)
-            }
+        unsafe {
+            match (ORDERED, CASE_SENSITIVE, TYPOS) {
+                (true, _, true) => panic!("ordered typos implementations are not yet available"),
+                (true, true, false) => x86_64::match_haystack::<W>(self.needle, haystack),
+                (true, false, false) => {
+                    x86_64::match_haystack_insensitive::<W>(self.needle_cased, haystack)
+                }
 
-            (false, true, false) => x86_64::match_haystack_unordered::<W>(self.needle, haystack),
-            (false, true, true) => {
-                x86_64::match_haystack_unordered_typos::<W>(self.needle, haystack, self.max_typos)
+                (false, true, false) => {
+                    x86_64::match_haystack_unordered::<W>(self.needle, haystack)
+                }
+                (false, true, true) => x86_64::match_haystack_unordered_typos::<W>(
+                    self.needle,
+                    haystack,
+                    self.max_typos,
+                ),
+                (false, false, false) => {
+                    x86_64::match_haystack_unordered_insensitive::<W>(self.needle_cased, haystack)
+                }
+                (false, false, true) => x86_64::match_haystack_unordered_typos_insensitive::<W>(
+                    self.needle_cased,
+                    haystack,
+                    self.max_typos,
+                ),
             }
-            (false, false, false) => {
-                x86_64::match_haystack_unordered_insensitive::<W>(self.needle_cased, haystack)
-            }
-            (false, false, true) => x86_64::match_haystack_unordered_typos_insensitive::<W>(
-                self.needle_cased,
-                haystack,
-                self.max_typos,
-            ),
         }
     }
 
@@ -222,7 +224,7 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         &self,
         haystack: &[u8],
     ) -> bool {
-        self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
+        unsafe { self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack) }
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -235,7 +237,7 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         &self,
         haystack: &[u8],
     ) -> bool {
-        self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
+        unsafe { self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack) }
     }
 }
 

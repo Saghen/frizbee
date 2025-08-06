@@ -15,7 +15,7 @@ use std::arch::x86_64::*;
 pub unsafe fn match_haystack<const W: usize>(needle: &[u8], haystack: &[u8]) -> bool {
     let len = haystack.len();
 
-    let mut needle_iter = needle.iter().map(|&c| _mm_set1_epi8(c as i8));
+    let mut needle_iter = needle.iter().map(|&c| unsafe { _mm_set1_epi8(c as i8) });
     let mut needle_char = needle_iter.next().unwrap();
 
     for start in (0..W).step_by(16) {
@@ -23,7 +23,7 @@ pub unsafe fn match_haystack<const W: usize>(needle: &[u8], haystack: &[u8]) -> 
             return false;
         }
 
-        let haystack_chunk = overlapping_load::<W>(haystack, start, len);
+        let haystack_chunk = unsafe { overlapping_load::<W>(haystack, start, len) };
 
         let mut last_match_idx = None;
         loop {

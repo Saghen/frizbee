@@ -55,10 +55,11 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
     }
 
     pub fn add_haystack(&mut self, matches: &mut M, haystack: &'a str, idx: u32) {
-        if let Some(prefilter) = &self.prefilter {
-            if !prefilter.match_haystack_unordered(haystack.as_bytes()) {
-                return;
-            }
+        // Fast prefilter
+        if let Some(prefilter) = &self.prefilter
+            && !prefilter.match_haystack_unordered_insensitive(haystack.as_bytes())
+        {
+            return;
         }
 
         self.haystacks[self.length] = haystack;

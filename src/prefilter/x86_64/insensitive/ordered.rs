@@ -21,7 +21,7 @@ pub unsafe fn match_haystack_insensitive<const W: usize>(
 
     let mut needle_iter = needle
         .iter()
-        .map(|&(c1, c2)| (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)));
+        .map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
     let mut needle_char = needle_iter.next().unwrap();
 
     for start in (0..W).step_by(16) {
@@ -29,18 +29,20 @@ pub unsafe fn match_haystack_insensitive<const W: usize>(
             return false;
         }
 
-        let haystack_chunk = overlapping_load::<W>(haystack, start, len);
+        let haystack_chunk = unsafe { overlapping_load::<W>(haystack, start, len) };
 
         let mut last_match_idx = None;
         loop {
             // Compare each byte (0xFF if equal, 0x00 if not)
-            let cmp = _mm_or_si128(
-                _mm_cmpeq_epi8(needle_char.0, haystack_chunk),
-                _mm_cmpeq_epi8(needle_char.1, haystack_chunk),
-            );
+            let cmp = unsafe {
+                _mm_or_si128(
+                    _mm_cmpeq_epi8(needle_char.0, haystack_chunk),
+                    _mm_cmpeq_epi8(needle_char.1, haystack_chunk),
+                )
+            };
 
             // Convert comparison result to bitmask
-            let mut mask = _mm_movemask_epi8(cmp) as u16;
+            let mut mask = unsafe { _mm_movemask_epi8(cmp) } as u16;
 
             // If we've already found a match on this chunk, 0 out the bits that come before the
             // last match
@@ -61,7 +63,7 @@ pub unsafe fn match_haystack_insensitive<const W: usize>(
                 // let haystack = _mm_setr_epi8(0,0,0,42,0,0,0,0,0,0,0,0,0,0,0,0);
                 // let needle = _mm_set1_epi8(42);
                 // Mask is 0000000000001000
-                let idx = _tzcnt_u16(mask) as usize;
+                let idx = unsafe { _tzcnt_u16(mask) } as usize;
 
                 // Reached end of haystack, advance to next chunk
                 if idx == 15 {

@@ -18,36 +18,32 @@ pub unsafe fn match_haystack_unordered_insensitive<const W: usize>(
     needle: &[(u8, u8)],
     haystack: &[u8],
 ) -> bool {
-    unsafe {
-        let len = haystack.len();
+    let len = haystack.len();
 
-        let mut needle_iter = needle.iter().map(|&(c1, c2)| {
-            let c1 = _mm_set1_epi8(c1 as i8);
-            let c2 = _mm_set1_epi8(c2 as i8);
-            _mm_unpacklo_epi64(c1, c2)
-        });
-        let mut needle_char = needle_iter.next().unwrap();
+    let mut needle_iter = needle
+        .iter()
+        .map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
+    let mut needle_char = needle_iter.next().unwrap();
 
-        for start in (0..W).step_by(16) {
-            let haystack_chunk = overlapping_load::<W>(haystack, start, len);
+    for start in (0..W).step_by(16) {
+        let haystack_chunk = unsafe { overlapping_load::<W>(haystack, start, len) };
 
-            loop {
-                // Check if any of the chars in the needle_char are in the haystack_chunk
-                let cmp = _mm_cmpistri::<_SIDD_CMP_EQUAL_ANY>(needle_char, haystack_chunk);
+        loop {
+            if unsafe { _mm_movemask_epi8(_mm_cmpeq_epi8(needle_char.0, haystack_chunk)) } == 0
+                && unsafe { _mm_movemask_epi8(_mm_cmpeq_epi8(needle_char.1, haystack_chunk)) } == 0
+            {
                 // No match, advance to next chunk
-                if cmp == 16 {
-                    break;
-                }
+                break;
+            }
 
-                // Progress to next needle char, if available
-                if let Some(next_needle_char) = needle_iter.next() {
-                    needle_char = next_needle_char;
-                } else {
-                    return true;
-                }
+            // Progress to next needle char, if available
+            if let Some(next_needle_char) = needle_iter.next() {
+                needle_char = next_needle_char;
+            } else {
+                return true;
             }
         }
-
-        false
     }
+
+    false
 }

@@ -1,6 +1,10 @@
 use std::hint::black_box;
 
-use frizbee::prefilter::bitmask::{string_to_bitmask, string_to_bitmask_scalar};
+use frizbee::prefilter::{
+    Prefilter,
+    bitmask::{string_to_bitmask, string_to_bitmask_scalar},
+    scalar, simd,
+};
 
 fn create_haystack(text: &str, text_pos: usize, length: usize) -> String {
     let mut haystack = String::new();
@@ -22,66 +26,88 @@ pub fn prefilter_bench(c: &mut criterion::Criterion) {
 }
 
 fn run_prefilter_bench<const W: usize>(c: &mut criterion::Criterion, needle: &str, haystack: &str) {
+    let needle_cased = &black_box(Prefilter::<W>::case_needle(needle));
     let needle = black_box(needle).as_bytes();
     let haystack = black_box(haystack).as_bytes();
 
     let length = haystack.len();
     let mut group = c.benchmark_group(format!("prefilter/{length}"));
 
-    // group.bench_function("scalar", |b| {
-    //     b.iter(|| ordered::scalar::match_haystack(needle, haystack))
-    // });
-    //
-    // // Generic SIMD implementation
-    // group.bench_function("generic<16>", |b| {
-    //     b.iter(|| ordered::simd::prefilter_simd::<W>(needle, haystack))
-    // });
-    //
-    // // Manual SSE4.2 implementation
-    // group.bench_function("sse4.2<16>", |b| {
-    //     b.iter(|| unsafe { ordered::x86_64::match_haystack_avx2::<W>(needle, haystack) })
-    // });
-    // group.bench_function("sse4.2<16>/insensitive", |b| {
-    //     let needle_chars = needle
-    //         .iter()
-    //         .map(|&c| unsafe {
-    //             if c.is_ascii_uppercase() {
-    //                 (_mm_set1_epi8(c as i8), _mm_set1_epi8((c | 0x20) as i8))
-    //             } else if c.is_ascii_lowercase() {
-    //                 (_mm_set1_epi8(c as i8), _mm_set1_epi8((c & !0x20) as i8))
-    //             } else {
-    //                 (_mm_set1_epi8(c as i8), _mm_set1_epi8(c as i8))
-    //             }
-    //         })
-    //         .collect::<Vec<_>>();
-    //     b.iter(|| unsafe {
-    //         ordered::x86_64::match_haystack_insensitive_avx2::<W>(
-    //             needle,
-    //             black_box(&needle_chars),
-    //             haystack,
-    //         )
-    //     })
-    // });
-    //
-    // // Typo
-    // group.bench_function("memchr with typo", |b| {
-    //     b.iter(|| ordered::memchr::match_haystack_insensitive_typo(needle, haystack))
-    // });
-    //
-    // // Unordered
-    // group.bench_function("sse4.2<16>/unordered", |b| {
-    //     b.iter(|| unsafe {
-    //         unordered::x86_64::match_haystack_unordered_avx2::<W>(needle, haystack)
-    //     })
-    // });
-    // group.bench_function("sse4.2<16>/unordered/typos", |b| {
-    //     b.iter(|| unsafe {
-    //         unordered::x86_64::match_haystack_unordered_typos_avx2::<W>(needle, haystack, 1)
-    //     })
-    // });
-    // group.bench_function("simd<16>/unordered", |b| {
-    //     b.iter(|| unordered::simd::prefilter_simd_unordered::<W>(needle, haystack))
-    // });
+    // Ordered
+    group.bench_function("scalar", |b| {
+        b.iter(|| scalar::match_haystack(needle, haystack))
+    });
+    group.bench_function("simd", |b| {
+        b.iter(|| simd::match_haystack::<W>(needle, haystack))
+    });
+    #[cfg(target_arch = "x86_64")]
+    group.bench_function("x86_64", |b| {
+        b.iter(|| unsafe { frizbee::prefilter::x86_64::match_haystack::<W>(needle, haystack) })
+    });
+
+    // Ordered Insensitive
+    group.bench_function("scalar/insensitive", |b| {
+        b.iter(|| scalar::match_haystack_insensitive(needle_cased, haystack))
+    });
+    group.bench_function("simd/insensitive", |b| {
+        b.iter(|| simd::match_haystack_insensitive::<W>(needle_cased, haystack))
+    });
+    group.bench_function("x86_64/insensitive", |b| {
+        b.iter(|| unsafe {
+            frizbee::prefilter::x86_64::match_haystack_insensitive::<W>(needle_cased, haystack)
+        })
+    });
+
+    // Unordered
+    group.bench_function("simd/unordered", |b| {
+        b.iter(|| simd::match_haystack_unordered::<W>(needle, haystack))
+    });
+    #[cfg(target_arch = "x86_64")]
+    group.bench_function("x86_64/unordered", |b| {
+        b.iter(|| unsafe {
+            frizbee::prefilter::x86_64::match_haystack_unordered::<W>(needle, haystack)
+        })
+    });
+
+    // Unordered Insensitive
+    group.bench_function("simd/unordered/insensitive", |b| {
+        b.iter(|| simd::match_haystack_unordered_insensitive::<W>(needle_cased, haystack))
+    });
+    #[cfg(target_arch = "x86_64")]
+    group.bench_function("x86_64/unordered/insensitive", |b| {
+        b.iter(|| unsafe {
+            frizbee::prefilter::x86_64::match_haystack_unordered_insensitive::<W>(
+                needle_cased,
+                haystack,
+            )
+        })
+    });
+
+    // Unordered Typos
+    group.bench_function("simd/unordered/typos", |b| {
+        b.iter(|| simd::match_haystack_unordered::<W>(needle, haystack))
+    });
+    #[cfg(target_arch = "x86_64")]
+    group.bench_function("x86_64/unordered/typos", |b| {
+        b.iter(|| unsafe {
+            frizbee::prefilter::x86_64::match_haystack_unordered_typos::<W>(needle, haystack, 1)
+        })
+    });
+
+    // Unordered Typos Insensitive
+    group.bench_function("simd/unordered/typos/insensitive", |b| {
+        b.iter(|| simd::match_haystack_unordered_typos_insensitive::<W>(needle_cased, haystack, 1))
+    });
+    #[cfg(target_arch = "x86_64")]
+    group.bench_function("x86_64/unordered/typos/insensitive", |b| {
+        b.iter(|| unsafe {
+            frizbee::prefilter::x86_64::match_haystack_unordered_typos_insensitive::<W>(
+                needle_cased,
+                haystack,
+                1,
+            )
+        })
+    });
 
     // Bitmask
     group.bench_function("bitmask", |b| {
