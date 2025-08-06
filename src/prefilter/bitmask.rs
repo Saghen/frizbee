@@ -1,6 +1,6 @@
 //! Kept for reference, but no longer used in the codebase due to poor performance without AVX512
 
-use std::simd::{cmp::SimdPartialOrd, num::SimdUint, Simd};
+use std::simd::{Simd, cmp::SimdPartialOrd, num::SimdUint};
 
 const LANES: usize = 8;
 
@@ -17,7 +17,7 @@ pub fn string_to_bitmask(s: &[u8]) -> u64 {
     let zero = Simd::splat(0);
     let zero_wide = Simd::splat(0);
     let one = Simd::splat(1);
-    let to_upperacse = Simd::splat(0x20);
+    let to_uppercase = Simd::splat(0x20);
 
     let mut i = 0;
     while i < s.len() {
@@ -26,7 +26,7 @@ pub fn string_to_bitmask(s: &[u8]) -> u64 {
         // Convert to uppercase
         let is_lower =
             simd_chunk.simd_ge(Simd::splat(b'a')) & simd_chunk.simd_le(Simd::splat(b'z'));
-        let simd_chunk = simd_chunk - is_lower.select(to_upperacse, zero);
+        let simd_chunk = simd_chunk - is_lower.select(to_uppercase, zero);
 
         // Check if characters are in the valid range [33, 90]
         let in_range =
