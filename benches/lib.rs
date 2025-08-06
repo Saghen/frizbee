@@ -9,7 +9,7 @@ mod match_list;
 mod prefilter;
 
 use interleave::{interleave_bench, interleave_misaligned_bench};
-use match_list::match_list_bench;
+use match_list::{match_list_bench, match_list_generated_bench};
 use prefilter::prefilter_bench;
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -18,12 +18,22 @@ fn criterion_benchmark(c: &mut Criterion) {
     interleave_bench(c);
     interleave_misaligned_bench(c);
 
+    // Bench on real data
+    let haystack_bytes = std::fs::read("match_list/data.txt")
+        .expect("Failed to read benchmark data. Run `wget -O match_list/data.txt https://gist.github.com/ii14/637689ef8d071824e881a78044670310/raw/dc1dbc859daa38b62f4b9a69dec1fc599e4735e7/data.txt`");
+    let haystack_str =
+        String::from_utf8(haystack_bytes).expect("Failed to parse chromium benchmark data");
+    let haystack = haystack_str.split('\n').collect::<Vec<_>>();
+
+    match_list_bench(c, "Chromium", "hash", &haystack);
+
+    // Bench on synthetic data
     for (name, (match_percentage, partial_match_percentage)) in [
         ("Partial Match", (0.05, 0.20)),
         ("All Match", (1.0, 0.0)),
         ("No Match", (0.0, 0.0)),
     ] {
-        match_list_bench(c, name, match_percentage, partial_match_percentage);
+        match_list_generated_bench(c, name, match_percentage, partial_match_percentage);
     }
 }
 

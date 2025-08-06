@@ -25,12 +25,6 @@ pub struct HaystackGenerationOptions {
     pub num_samples: usize,
 }
 
-impl HaystackGenerationOptions {
-    pub fn estimate_size(&self) -> u64 {
-        (self.num_samples * self.median_length) as u64
-    }
-}
-
 impl Display for HaystackGenerationOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let match_title = if self.match_percentage == 0.0 && self.partial_match_percentage == 0.0 {
