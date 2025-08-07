@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::simd::cmp::*;
 use std::simd::Simd;
+use std::simd::cmp::*;
 
 #[inline]
 pub fn char_indices_from_score_matrix<const W: usize, const L: usize>(
@@ -101,7 +101,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{smith_waterman::simd::smith_waterman, Scoring};
+    use crate::{Scoring, smith_waterman::simd::smith_waterman};
 
     use super::*;
 

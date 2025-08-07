@@ -1,6 +1,6 @@
 use std::{
     arch::x86_64::*,
-    simd::{num::SimdUint, Simd},
+    simd::{Simd, num::SimdUint},
 };
 
 #[target_feature(enable = "avx2", enable = "avx512f", enable = "avx512bw")]
@@ -97,14 +97,16 @@ pub fn interleave_chunk(mut simds: [__m256i; 32]) -> [Simd<u8, 32>; 32] {
 }
 
 #[inline(always)]
-unsafe fn interleave_u8x32(a: __m256i, b: __m256i) -> (__m256i, __m256i) { unsafe {
-    // Use vpunpcklwd and vpunpckhwd for 16-bit interleaving
-    let lo = _mm256_unpacklo_epi8(a, b);
-    let hi = _mm256_unpackhi_epi8(a, b);
+unsafe fn interleave_u8x32(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
+    unsafe {
+        // Use vpunpcklwd and vpunpckhwd for 16-bit interleaving
+        let lo = _mm256_unpacklo_epi8(a, b);
+        let hi = _mm256_unpackhi_epi8(a, b);
 
-    // Fix the lane crossing issue in AVX2
-    let lo_fixed = _mm256_permute4x64_epi64(lo, 0b11011000); // 0xD8
-    let hi_fixed = _mm256_permute4x64_epi64(hi, 0b11011000);
+        // Fix the lane crossing issue in AVX2
+        let lo_fixed = _mm256_permute4x64_epi64(lo, 0b11011000); // 0xD8
+        let hi_fixed = _mm256_permute4x64_epi64(hi, 0b11011000);
 
-    (lo_fixed, hi_fixed)
-}}
+        (lo_fixed, hi_fixed)
+    }
+}

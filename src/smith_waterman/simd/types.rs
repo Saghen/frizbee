@@ -1,4 +1,4 @@
-use std::simd::{cmp::*, LaneCount, SupportedLaneCount};
+use std::simd::{LaneCount, SupportedLaneCount, cmp::*};
 use std::simd::{Mask, Simd};
 
 const CAPITAL_START: u16 = 65; // A

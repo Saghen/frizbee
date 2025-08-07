@@ -1,10 +1,10 @@
-use std::simd::{cmp::SimdOrd, Simd};
+use std::simd::{Simd, cmp::SimdOrd};
 
 use crate::{
-    smith_waterman::simd::{
-        smith_waterman_inner, typos_from_score_matrix, HaystackChar, NeedleChar,
-    },
     Match, Scoring,
+    smith_waterman::simd::{
+        HaystackChar, NeedleChar, smith_waterman_inner, typos_from_score_matrix,
+    },
 };
 
 pub(crate) trait IncrementalBucketTrait {
