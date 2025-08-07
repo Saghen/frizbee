@@ -184,6 +184,7 @@ impl Prefilter {
         const ORDERED: bool,
         const CASE_SENSITIVE: bool,
         const TYPOS: bool,
+        const AVX2: bool,
     >(
         &self,
         haystack: &[u8],
@@ -205,16 +206,17 @@ impl Prefilter {
                     self.max_typos,
                 ),
                 (false, false, false) => {
-                    #[cfg(target_feature = "avx2")]
-                    return x86_64::match_haystack_unordered_insensitive_avx2(
-                        self.needle_avx2.as_ref().unwrap(),
-                        haystack,
-                    );
-                    #[cfg(not(target_feature = "avx2"))]
-                    return x86_64::match_haystack_unordered_insensitive(
-                        &self.needle_cased,
-                        haystack,
-                    );
+                    if AVX2 {
+                        return x86_64::match_haystack_unordered_insensitive_avx2(
+                            self.needle_avx2.as_ref().unwrap(),
+                            haystack,
+                        );
+                    } else {
+                        return x86_64::match_haystack_unordered_insensitive(
+                            &self.needle_cased,
+                            haystack,
+                        );
+                    }
                 }
                 (false, false, true) => x86_64::match_haystack_unordered_typos_insensitive(
                     &self.needle_cased,
@@ -248,7 +250,7 @@ impl Prefilter {
         &self,
         haystack: &[u8],
     ) -> bool {
-        unsafe { self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack) }
+        unsafe { self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS, true>(haystack) }
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -261,7 +263,7 @@ impl Prefilter {
         &self,
         haystack: &[u8],
     ) -> bool {
-        unsafe { self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack) }
+        unsafe { self.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, TYPOS, false>(haystack) }
     }
 }
 
@@ -551,7 +553,8 @@ mod tests {
             #[cfg(target_arch = "x86_64")]
             {
                 let typo_result_x86_64 = unsafe {
-                    prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true>(haystack)
+                    prefilter
+                        .match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true, false>(haystack)
                 };
                 assert_eq!(
                     typo_result, typo_result_x86_64,
@@ -576,7 +579,7 @@ mod tests {
         #[cfg(target_arch = "x86_64")]
         {
             let result_x86_64 = unsafe {
-                prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, false>(haystack)
+                prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, false, false>(haystack)
             };
             assert_eq!(
                 result, result_x86_64,
@@ -585,7 +588,8 @@ mod tests {
 
             if !ORDERED {
                 let typo_result_x86_64 = unsafe {
-                    prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true>(haystack)
+                    prefilter
+                        .match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true, false>(haystack)
                 };
                 assert_eq!(
                     result, typo_result_x86_64,

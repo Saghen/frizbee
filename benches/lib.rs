@@ -2,7 +2,6 @@
 #![feature(array_repeat)]
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use frizbee::{Config, match_list};
 use std::time::Duration;
 
 mod interleave;
