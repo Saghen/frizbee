@@ -21,7 +21,7 @@ pub fn interleave_bench(c: &mut criterion::Criterion) {
 }
 
 pub fn interleave_misaligned_bench(c: &mut criterion::Criterion) {
-    let mut group = c.benchmark_group("interleave-misaligned");
+    let mut group = c.benchmark_group("interleave/misaligned");
     let str = "testtesttesttesttesttesttesttes"; // length = 31
 
     group.bench_function("32", |b| {

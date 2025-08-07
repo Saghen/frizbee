@@ -1,8 +1,8 @@
-use super::bucket::FixedWidthBucket;
 use super::Appendable;
+use super::bucket::FixedWidthBucket;
 
 use crate::one_shot::match_too_large;
-use crate::prefilter::string_to_bitmask;
+use crate::prefilter::Prefilter;
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Config, Match};
 
@@ -61,25 +61,25 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
         return;
     }
 
-    let needle_bitmask = string_to_bitmask(needle.as_bytes());
+    let prefilter = Prefilter::new(needle, config.max_typos.unwrap_or(0));
 
-    let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_12 = FixedWidthBucket::<12, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_16 = FixedWidthBucket::<16, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_20 = FixedWidthBucket::<20, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_24 = FixedWidthBucket::<24, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_32 = FixedWidthBucket::<32, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_48 = FixedWidthBucket::<48, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_64 = FixedWidthBucket::<64, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_96 = FixedWidthBucket::<96, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_128 = FixedWidthBucket::<128, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_160 = FixedWidthBucket::<160, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_192 = FixedWidthBucket::<192, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_224 = FixedWidthBucket::<224, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_256 = FixedWidthBucket::<256, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_384 = FixedWidthBucket::<384, M>::new(needle, needle_bitmask, &config);
-    let mut bucket_size_512 = FixedWidthBucket::<512, M>::new(needle, needle_bitmask, &config);
+    let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, &config);
+    let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, &config);
+    let mut bucket_size_12 = FixedWidthBucket::<12, M>::new(needle, &config);
+    let mut bucket_size_16 = FixedWidthBucket::<16, M>::new(needle, &config);
+    let mut bucket_size_20 = FixedWidthBucket::<20, M>::new(needle, &config);
+    let mut bucket_size_24 = FixedWidthBucket::<24, M>::new(needle, &config);
+    let mut bucket_size_32 = FixedWidthBucket::<32, M>::new(needle, &config);
+    let mut bucket_size_48 = FixedWidthBucket::<48, M>::new(needle, &config);
+    let mut bucket_size_64 = FixedWidthBucket::<64, M>::new(needle, &config);
+    let mut bucket_size_96 = FixedWidthBucket::<96, M>::new(needle, &config);
+    let mut bucket_size_128 = FixedWidthBucket::<128, M>::new(needle, &config);
+    let mut bucket_size_160 = FixedWidthBucket::<160, M>::new(needle, &config);
+    let mut bucket_size_192 = FixedWidthBucket::<192, M>::new(needle, &config);
+    let mut bucket_size_224 = FixedWidthBucket::<224, M>::new(needle, &config);
+    let mut bucket_size_256 = FixedWidthBucket::<256, M>::new(needle, &config);
+    let mut bucket_size_384 = FixedWidthBucket::<384, M>::new(needle, &config);
+    let mut bucket_size_512 = FixedWidthBucket::<512, M>::new(needle, &config);
 
     // If max_typos is set, we can ignore any haystacks that are shorter than the needle
     // minus the max typos, since it's impossible for them to match
@@ -88,12 +88,18 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
         .map(|max| needle.len() - (max as usize))
         .unwrap_or(0);
 
-    for (i, haystack) in haystacks.iter().enumerate() {
+    for (i, haystack) in haystacks
+        .iter()
+        .map(|h| h.as_ref())
+        .enumerate()
+        .filter(|(_, h)| h.len() >= min_haystack_len)
+        .filter(|(_, h)| {
+            config.max_typos.is_none()
+                || prefilter.match_haystack_unordered_insensitive(h.as_bytes())
+        })
+    {
         let i = i as u32 + index_offset;
-        let haystack = haystack.as_ref();
-        if haystack.len() < min_haystack_len {
-            continue;
-        }
+
         // fallback to greedy matching
         if match_too_large(needle, haystack) {
             let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);

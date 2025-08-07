@@ -117,7 +117,7 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{smith_waterman::simd::smith_waterman as smith_waterman_simd, Scoring};
+    use crate::{Scoring, smith_waterman::simd::smith_waterman as smith_waterman_simd};
 
     const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 

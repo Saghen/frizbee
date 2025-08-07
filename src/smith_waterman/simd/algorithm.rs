@@ -4,7 +4,7 @@ use std::simd::cmp::*;
 use std::simd::num::SimdUint;
 use std::simd::{Mask, Simd};
 
-use super::{interleave, HaystackChar, NeedleChar};
+use super::{HaystackChar, NeedleChar, interleave};
 use crate::Scoring;
 
 #[inline(always)]

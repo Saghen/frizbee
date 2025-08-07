@@ -63,6 +63,7 @@ pub struct MatchIndices {
 pub struct Config {
     /// May perform prefiltering, depending on haystack length and max number of typos,
     /// which drastically improves performance when most of the haystack does not match
+    /// Automatically disabled when max_typos = None
     pub prefilter: bool,
     /// The maximum number of characters missing from the needle, before an item in the
     /// haystack is filtered out

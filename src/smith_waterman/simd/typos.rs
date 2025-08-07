@@ -88,7 +88,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{smith_waterman::simd::smith_waterman, Scoring};
+    use crate::{Scoring, smith_waterman::simd::smith_waterman};
 
     fn get_typos(needle: &str, haystack: &str) -> u16 {
         typos_from_score_matrix(

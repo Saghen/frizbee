@@ -216,7 +216,6 @@ version = "0.5.0"
 dependencies = [
  "criterion",
  "iai-callgrind",
- "memchr",
  "multiversion",
  "nucleo",
  "rand",

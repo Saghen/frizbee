@@ -1,4 +1,4 @@
-use std::simd::{num::SimdUint, LaneCount, Simd, SupportedLaneCount};
+use std::simd::{LaneCount, Simd, SupportedLaneCount, num::SimdUint};
 
 #[inline(never)]
 pub fn interleave<const W: usize, const L: usize>(strs: [&str; L]) -> [Simd<u16, L>; W]

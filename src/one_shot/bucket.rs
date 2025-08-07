@@ -1,17 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::prefilter::{prefilter, prefilter_with_typo, string_to_bitmask};
 use crate::smith_waterman::simd::{smith_waterman, typos_from_score_matrix};
 use crate::{Config, Match, Scoring};
 
 use super::Appendable;
-
-#[derive(Debug, Clone, Copy)]
-enum PrefilterMethod {
-    None,
-    Memchr,
-    Bitmask,
-}
 
 #[derive(Debug)]
 pub(crate) struct FixedWidthBucket<'a, const W: usize, M: Appendable<Match>> {
@@ -20,19 +12,17 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize, M: Appendable<Match>> {
 
     length: usize,
     needle: &'a str,
-    needle_bitmask: u64,
     haystacks: [&'a str; 32],
     idxs: [u32; 32],
 
     max_typos: Option<u16>,
     scoring: Scoring,
-    prefilter: PrefilterMethod,
 
     _phantom: PhantomData<M>,
 }
 
 impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
-    pub fn new(needle: &'a str, needle_bitmask: u64, config: &Config) -> Self {
+    pub fn new(needle: &'a str, config: &Config) -> Self {
         FixedWidthBucket {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             has_avx512: is_x86_feature_detected!("avx512f")
@@ -47,48 +37,17 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 
             length: 0,
             needle,
-            needle_bitmask,
             haystacks: [""; 32],
             idxs: [0; 32],
 
             max_typos: config.max_typos,
             scoring: config.scoring.clone(),
-            prefilter: match (config.prefilter, config.max_typos, W) {
-                (true, Some(0), 48..) => PrefilterMethod::Memchr,
-                (true, Some(1), 20..) => PrefilterMethod::Memchr,
-                // TODO: disable on long haystacks? arbitrarily picked 64 for now
-                (true, _, ..64) => PrefilterMethod::Bitmask,
-                _ => PrefilterMethod::None,
-            },
 
             _phantom: PhantomData,
         }
     }
 
     pub fn add_haystack(&mut self, matches: &mut M, haystack: &'a str, idx: u32) {
-        if !matches!(self.prefilter, PrefilterMethod::None) {
-            let matched = match (self.prefilter, self.max_typos) {
-                (PrefilterMethod::Memchr, Some(0)) => prefilter(self.needle, haystack),
-                (PrefilterMethod::Memchr, Some(1)) => prefilter_with_typo(self.needle, haystack),
-
-                (PrefilterMethod::Bitmask, Some(0)) => {
-                    self.needle_bitmask & string_to_bitmask(haystack.as_bytes())
-                        == self.needle_bitmask
-                }
-                // TODO: skip this when typos > 2?
-                (PrefilterMethod::Bitmask, Some(max)) => {
-                    (self.needle_bitmask & string_to_bitmask(haystack.as_bytes())
-                        ^ self.needle_bitmask)
-                        .count_ones()
-                        <= max as u32
-                }
-                _ => true,
-            };
-            if !matched {
-                return;
-            }
-        }
-
         self.haystacks[self.length] = haystack;
         self.idxs[self.length] = idx;
         self.length += 1;
@@ -128,15 +87,11 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
             .max_typos
             .map(|max_typos| typos_from_score_matrix::<W, L>(&score_matrix, max_typos));
 
-        #[allow(clippy::needless_range_loop)]
         for idx in 0..self.length {
-            // Memchr guarantees the number of typos is <= max_typos so no need to check
-            if !matches!(self.prefilter, PrefilterMethod::Memchr) {
-                if let Some(max_typos) = self.max_typos {
-                    if typos.is_some_and(|typos| typos[idx] > max_typos) {
-                        continue;
-                    }
-                }
+            if let Some(max_typos) = self.max_typos
+                && typos.is_some_and(|typos| typos[idx] > max_typos)
+            {
+                continue;
             }
 
             let score_idx = self.idxs[idx];

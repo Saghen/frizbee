@@ -5,6 +5,7 @@
 - [Environment](#environment)
 - [Explanation](#explanation)
 - [Benchmark Results](#benchmark-results)
+    - [Chromium](#chromium)
     - [Partial Match](#partial-match)
     - [All Match](#all-match)
     - [No Match](#no-match)
@@ -40,6 +41,22 @@ NOTE: The nucleo parallel benchmark is not included since I haven't discovered a
 
 ## Benchmark Results
 
+### Chromium
+
+List of all file paths in the chromium repository, with a median length of 67 characters.
+```rust
+needle: "linux"
+match_percentage: 0.08
+partial_match_percentage: unknown
+median_length: 67
+std_dev_length: unknown
+num_samples: 1406941
+```
+
+|          | `Nucleo`                 | `Frizbee`                       | `Frizbee: All Scores`            | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`            | `Frizbee: All Scores (Parallel)`           |
+|:---------|:-------------------------|:--------------------------------|:---------------------------------|:--------------------------------|:--------------------------------|:------------------------------------------ |
+| **`67`** | `93.70 ms` (✅ **1.00x**) | `38.40 ms` (🚀 **2.44x faster**) | `118.30 ms` (❌ *1.26x slower*)   | `39.53 ms` (🚀 **2.37x faster**) | `7.92 ms` (🚀 **11.83x faster**) | `22.74 ms` (🚀 **4.12x faster**)            |
+
 ### Partial Match
 
 What I would consider the typical case, where 5% of the haystack matches the needle and 20% of the haystack includes characters from the needle, but doesn't fully match.
@@ -53,12 +70,12 @@ std_dev_length: median_length / 4
 num_samples: 100000
 ```
 
-|           | `Nucleo`                 | `Frizbee`                      | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`              | `Frizbee: All Scores (Parallel)`           |
-|:----------|:-------------------------|:-------------------------------|:--------------------------------|:--------------------------------|:----------------------------------|:------------------------------------------ |
-| **`16`**  | `3.54 ms` (✅ **1.00x**)  | `1.46 ms` (🚀 **2.42x faster**) | `3.94 ms` (❌ *1.11x slower*)    | `2.92 ms` (✅ **1.21x faster**)  | `303.43 us` (🚀 **11.68x faster**) | `1.08 ms` (🚀 **3.27x faster**)             |
-| **`32`**  | `5.45 ms` (✅ **1.00x**)  | `3.40 ms` (✅ **1.60x faster**) | `6.18 ms` (❌ *1.13x slower*)    | `5.25 ms` (✅ **1.04x faster**)  | `648.31 us` (🚀 **8.40x faster**)  | `1.40 ms` (🚀 **3.89x faster**)             |
-| **`64`**  | `8.56 ms` (✅ **1.00x**)  | `4.94 ms` (✅ **1.73x faster**) | `11.16 ms` (❌ *1.30x slower*)   | `7.41 ms` (✅ **1.15x faster**)  | `885.91 us` (🚀 **9.66x faster**)  | `2.06 ms` (🚀 **4.15x faster**)             |
-| **`128`** | `25.08 ms` (✅ **1.00x**) | `9.75 ms` (🚀 **2.57x faster**) | `19.78 ms` (✅ **1.27x faster**) | `15.07 ms` (✅ **1.66x faster**) | `1.72 ms` (🚀 **14.55x faster**)   | `3.27 ms` (🚀 **7.67x faster**)             |
+|           | `Nucleo`                 | `Frizbee`                       | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`              | `Frizbee: All Scores (Parallel)`           |
+|:----------|:-------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:----------------------------------|:------------------------------------------ |
+| **`16`**  | `3.63 ms` (✅ **1.00x**)  | `1.59 ms` (🚀 **2.28x faster**)  | `4.01 ms` (✅ **1.10x slower**)  | `1.78 ms` (🚀 **2.03x faster**)  | `323.03 us` (🚀 **11.23x faster**) | `1.08 ms` (🚀 **3.34x faster**)             |
+| **`32`**  | `5.62 ms` (✅ **1.00x**)  | `2.70 ms` (🚀 **2.08x faster**)  | `6.30 ms` (❌ *1.12x slower*)    | `3.07 ms` (🚀 **1.83x faster**)  | `487.56 us` (🚀 **11.52x faster**) | `1.41 ms` (🚀 **3.97x faster**)             |
+| **`64`**  | `8.91 ms` (✅ **1.00x**)  | `5.17 ms` (✅ **1.72x faster**)  | `11.12 ms` (❌ *1.25x slower*)   | `5.74 ms` (✅ **1.55x faster**)  | `836.33 us` (🚀 **10.65x faster**) | `2.07 ms` (🚀 **4.29x faster**)             |
+| **`128`** | `26.31 ms` (✅ **1.00x**) | `13.53 ms` (🚀 **1.94x faster**) | `19.67 ms` (✅ **1.34x faster**) | `14.67 ms` (✅ **1.79x faster**) | `1.97 ms` (🚀 **13.35x faster**)   | `3.25 ms` (🚀 **8.08x faster**)             |
 
 ### All Match
 
@@ -73,12 +90,12 @@ std_dev_length: median_length / 4
 num_samples: 100000
 ```
 
-|           | `Nucleo`                  | `Frizbee`                       | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`            | `Frizbee: All Scores (Parallel)`           |
-|:----------|:--------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:------------------------------------------ |
-| **`16`**  | `22.83 ms` (✅ **1.00x**)  | `5.48 ms` (🚀 **4.17x faster**)  | `4.05 ms` (🚀 **5.64x faster**)  | `8.98 ms` (🚀 **2.54x faster**)  | `1.11 ms` (🚀 **20.65x faster**) | `1.13 ms` (🚀 **20.23x faster**)            |
-| **`32`**  | `38.62 ms` (✅ **1.00x**)  | `13.60 ms` (🚀 **2.84x faster**) | `6.36 ms` (🚀 **6.08x faster**)  | `16.66 ms` (🚀 **2.32x faster**) | `2.54 ms` (🚀 **15.23x faster**) | `1.43 ms` (🚀 **26.96x faster**)            |
-| **`64`**  | `62.80 ms` (✅ **1.00x**)  | `18.59 ms` (🚀 **3.38x faster**) | `10.99 ms` (🚀 **5.72x faster**) | `22.97 ms` (🚀 **2.73x faster**) | `3.30 ms` (🚀 **19.05x faster**) | `2.13 ms` (🚀 **29.42x faster**)            |
-| **`128`** | `117.87 ms` (✅ **1.00x**) | `28.51 ms` (🚀 **4.13x faster**) | `19.88 ms` (🚀 **5.93x faster**) | `31.23 ms` (🚀 **3.77x faster**) | `4.27 ms` (🚀 **27.62x faster**) | `3.22 ms` (🚀 **36.60x faster**)            |
+|           | `Nucleo`                  | `Frizbee`                       | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`              | `Frizbee: All Scores (Parallel)`           |
+|:----------|:--------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:----------------------------------|:------------------------------------------ |
+| **`16`**  | `23.64 ms` (✅ **1.00x**)  | `4.68 ms` (🚀 **5.05x faster**)  | `3.97 ms` (🚀 **5.95x faster**)  | `5.92 ms` (🚀 **3.99x faster**)  | `829.58 us` (🚀 **28.50x faster**) | `1.11 ms` (🚀 **21.38x faster**)            |
+| **`32`**  | `40.54 ms` (✅ **1.00x**)  | `9.27 ms` (🚀 **4.37x faster**)  | `6.27 ms` (🚀 **6.46x faster**)  | `12.17 ms` (🚀 **3.33x faster**) | `1.64 ms` (🚀 **24.66x faster**)   | `1.42 ms` (🚀 **28.58x faster**)            |
+| **`64`**  | `66.34 ms` (✅ **1.00x**)  | `15.46 ms` (🚀 **4.29x faster**) | `11.20 ms` (🚀 **5.92x faster**) | `19.42 ms` (🚀 **3.42x faster**) | `2.43 ms` (🚀 **27.25x faster**)   | `2.09 ms` (🚀 **31.69x faster**)            |
+| **`128`** | `124.55 ms` (✅ **1.00x**) | `25.00 ms` (🚀 **4.98x faster**) | `19.58 ms` (🚀 **6.36x faster**) | `28.95 ms` (🚀 **4.30x faster**) | `3.55 ms` (🚀 **35.11x faster**)   | `3.23 ms` (🚀 **38.55x faster**)            |
 
 ### No Match
 
@@ -93,12 +110,12 @@ std_dev_length: median_length / 4
 num_samples: 100000
 ```
 
-|           | `Nucleo`                 | `Frizbee`                        | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`             | `Frizbee: All Scores (Parallel)`           |
-|:----------|:-------------------------|:---------------------------------|:--------------------------------|:--------------------------------|:---------------------------------|:------------------------------------------ |
-| **`16`**  | `2.07 ms` (✅ **1.00x**)  | `972.98 us` (🚀 **2.13x faster**) | `3.94 ms` (❌ *1.90x slower*)    | `1.96 ms` (✅ **1.06x faster**)  | `212.16 us` (🚀 **9.77x faster**) | `1.07 ms` (🚀 **1.94x faster**)             |
-| **`32`**  | `3.21 ms` (✅ **1.00x**)  | `2.36 ms` (✅ **1.36x faster**)   | `6.22 ms` (❌ *1.94x slower*)    | `3.78 ms` (❌ *1.18x slower*)    | `398.60 us` (🚀 **8.05x faster**) | `1.41 ms` (🚀 **2.28x faster**)             |
-| **`64`**  | `4.72 ms` (✅ **1.00x**)  | `3.69 ms` (✅ **1.28x faster**)   | `11.03 ms` (❌ *2.33x slower*)   | `5.56 ms` (❌ *1.18x slower*)    | `606.87 us` (🚀 **7.78x faster**) | `2.07 ms` (🚀 **2.28x faster**)             |
-| **`128`** | `16.23 ms` (✅ **1.00x**) | `7.65 ms` (🚀 **2.12x faster**)   | `19.93 ms` (❌ *1.23x slower*)   | `12.67 ms` (✅ **1.28x faster**) | `1.29 ms` (🚀 **12.63x faster**)  | `3.25 ms` (🚀 **5.00x faster**)             |
+|           | `Nucleo`                 | `Frizbee`                       | `Frizbee: All Scores`           | `Frizbee: 1 Typo`               | `Frizbee (Parallel)`             | `Frizbee: All Scores (Parallel)`           |
+|:----------|:-------------------------|:--------------------------------|:--------------------------------|:--------------------------------|:---------------------------------|:------------------------------------------ |
+| **`16`**  | `2.09 ms` (✅ **1.00x**)  | `1.04 ms` (🚀 **2.02x faster**)  | `3.94 ms` (❌ *1.88x slower*)    | `1.05 ms` (🚀 **2.00x faster**)  | `229.62 us` (🚀 **9.12x faster**) | `1.06 ms` (🚀 **1.97x faster**)             |
+| **`32`**  | `3.26 ms` (✅ **1.00x**)  | `1.75 ms` (🚀 **1.86x faster**)  | `6.25 ms` (❌ *1.92x slower*)    | `1.79 ms` (🚀 **1.83x faster**)  | `339.89 us` (🚀 **9.60x faster**) | `1.40 ms` (🚀 **2.33x faster**)             |
+| **`64`**  | `4.79 ms` (✅ **1.00x**)  | `3.81 ms` (✅ **1.26x faster**)  | `11.28 ms` (❌ *2.35x slower*)   | `3.99 ms` (✅ **1.20x faster**)  | `637.96 us` (🚀 **7.51x faster**) | `2.12 ms` (🚀 **2.26x faster**)             |
+| **`128`** | `16.90 ms` (✅ **1.00x**) | `11.52 ms` (✅ **1.47x faster**) | `19.97 ms` (❌ *1.18x slower*)   | `12.36 ms` (✅ **1.37x faster**) | `1.73 ms` (🚀 **9.77x faster**)   | `3.25 ms` (🚀 **5.20x faster**)             |
 
 ---
 Made with [criterion-table](https://github.com/nu11ptr/criterion-table)
