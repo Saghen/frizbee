@@ -209,7 +209,7 @@ impl Prefilter {
                     );
                     #[cfg(not(target_feature = "avx2"))]
                     return x86_64::match_haystack_unordered_insensitive(
-                        self.needle_cased,
+                        &self.needle_cased,
                         haystack,
                     );
                 }
