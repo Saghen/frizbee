@@ -13,7 +13,7 @@ use std::arch::x86_64::*;
 /// When W <= 16, the caller must ensure that the minimum length of the haystack is >= 8.
 /// In all cases, the caller must ensure the needle.len() > 0 and that SSE2 is available.
 #[inline(always)]
-pub unsafe fn match_haystack_unordered_typos<const W: usize>(
+pub unsafe fn match_haystack_unordered_typos(
     needle: &[u8],
     haystack: &[u8],
     max_typos: u16,
@@ -33,8 +33,8 @@ pub unsafe fn match_haystack_unordered_typos<const W: usize>(
         // we would only scan from the third chunk onwards for the next needle. Technically,
         // we should scan from the beginning of the haystack instead, but I believe the
         // previous memchr implementation had the same bug.
-        for start in (0..W).step_by(16) {
-            let haystack_chunk = unsafe { overlapping_load::<W>(haystack, start, len) };
+        for start in (0..len).step_by(16) {
+            let haystack_chunk = unsafe { overlapping_load(haystack, start, len) };
 
             loop {
                 // Compare each byte (0xFF if equal, 0x00 if not)

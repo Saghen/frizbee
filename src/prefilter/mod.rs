@@ -18,9 +18,12 @@ pub mod simd;
 pub mod x86_64;
 
 #[derive(Clone, Debug)]
-pub struct Prefilter<'a, const W: usize> {
-    needle: &'a [u8],
-    needle_cased: &'a [(u8, u8)],
+pub struct Prefilter {
+    needle: String,
+    needle_cased: Vec<(u8, u8)>,
+    #[cfg(target_arch = "x86_64")]
+    needle_avx2: Option<Vec<std::arch::x86_64::__m256i>>,
+
     max_typos: u16,
 
     has_sse2: bool,
@@ -28,9 +31,8 @@ pub struct Prefilter<'a, const W: usize> {
     has_neon: bool,
 }
 
-impl<'a, const W: usize> Prefilter<'a, W> {
-    pub fn new(needle: &'a [u8], needle_cased: &'a [(u8, u8)], max_typos: u16) -> Self {
-        #[cfg(target_arch = "x86_64")]
+impl Prefilter {
+    pub fn new(needle: &str, max_typos: u16) -> Self {
         let has_sse2 = is_x86_feature_detected!("sse2");
         #[cfg(not(target_arch = "x86_64"))]
         let has_sse2 = false;
@@ -46,9 +48,13 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         #[cfg(not(target_arch = "aarch64"))]
         let has_neon = false;
 
+        let needle_cased = Self::case_needle(needle);
         Prefilter {
-            needle,
-            needle_cased,
+            needle: needle.to_string(),
+            needle_cased: needle_cased.clone(),
+            #[cfg(target_arch = "x86_64")]
+            needle_avx2: has_avx2.then(|| unsafe { x86_64::needle_to_avx2(&needle_cased) }),
+
             max_typos,
 
             has_sse2,
@@ -98,14 +104,12 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         &self,
         haystack: &[u8],
     ) -> bool {
-        if W <= 16 {
-            match haystack.len() {
-                0 => return true,
-                1..=7 => {
-                    return self.match_haystack_scalar::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack);
-                }
-                _ => {}
+        match haystack.len() {
+            0 => return true,
+            1..8 => {
+                return self.match_haystack_scalar::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack);
             }
+            _ => {}
         }
 
         match (self.has_avx2, self.has_sse2, self.has_neon) {
@@ -129,14 +133,16 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         haystack: &[u8],
     ) -> bool {
         match (TYPOS, CASE_SENSITIVE) {
-            (true, true) => scalar::match_haystack_typos(self.needle, haystack, self.max_typos),
+            (true, true) => {
+                scalar::match_haystack_typos(self.needle.as_bytes(), haystack, self.max_typos)
+            }
             (true, false) => scalar::match_haystack_typos_insensitive(
-                self.needle_cased,
+                &self.needle_cased,
                 haystack,
                 self.max_typos,
             ),
-            (false, true) => scalar::match_haystack(self.needle, haystack),
-            (false, false) => scalar::match_haystack_insensitive(self.needle_cased, haystack),
+            (false, true) => scalar::match_haystack(self.needle.as_bytes(), haystack),
+            (false, false) => scalar::match_haystack_insensitive(&self.needle_cased, haystack),
         }
     }
 
@@ -147,20 +153,22 @@ impl<'a, const W: usize> Prefilter<'a, W> {
     ) -> bool {
         match (ORDERED, CASE_SENSITIVE, TYPOS) {
             (true, _, true) => panic!("ordered typos implementations are not yet available"),
-            (true, true, false) => simd::match_haystack::<W>(self.needle, haystack),
-            (true, false, false) => {
-                simd::match_haystack_insensitive::<W>(self.needle_cased, haystack)
-            }
+            (true, true, false) => simd::match_haystack(self.needle.as_bytes(), haystack),
+            (true, false, false) => simd::match_haystack_insensitive(&self.needle_cased, haystack),
 
-            (false, true, false) => simd::match_haystack_unordered::<W>(self.needle, haystack),
-            (false, true, true) => {
-                simd::match_haystack_unordered_typos::<W>(self.needle, haystack, self.max_typos)
+            (false, true, false) => {
+                simd::match_haystack_unordered(self.needle.as_bytes(), haystack)
             }
+            (false, true, true) => simd::match_haystack_unordered_typos(
+                self.needle.as_bytes(),
+                haystack,
+                self.max_typos,
+            ),
             (false, false, false) => {
-                simd::match_haystack_unordered_insensitive::<W>(self.needle_cased, haystack)
+                simd::match_haystack_unordered_insensitive(&self.needle_cased, haystack)
             }
-            (false, false, true) => simd::match_haystack_unordered_typos_insensitive::<W>(
-                self.needle_cased,
+            (false, false, true) => simd::match_haystack_unordered_typos_insensitive(
+                &self.needle_cased,
                 haystack,
                 self.max_typos,
             ),
@@ -180,24 +188,33 @@ impl<'a, const W: usize> Prefilter<'a, W> {
         unsafe {
             match (ORDERED, CASE_SENSITIVE, TYPOS) {
                 (true, _, true) => panic!("ordered typos implementations are not yet available"),
-                (true, true, false) => x86_64::match_haystack::<W>(self.needle, haystack),
+                (true, true, false) => x86_64::match_haystack(self.needle.as_bytes(), haystack),
                 (true, false, false) => {
-                    x86_64::match_haystack_insensitive::<W>(self.needle_cased, haystack)
+                    x86_64::match_haystack_insensitive(&self.needle_cased, haystack)
                 }
 
                 (false, true, false) => {
-                    x86_64::match_haystack_unordered::<W>(self.needle, haystack)
+                    x86_64::match_haystack_unordered(self.needle.as_bytes(), haystack)
                 }
-                (false, true, true) => x86_64::match_haystack_unordered_typos::<W>(
-                    self.needle,
+                (false, true, true) => x86_64::match_haystack_unordered_typos(
+                    self.needle.as_bytes(),
                     haystack,
                     self.max_typos,
                 ),
                 (false, false, false) => {
-                    x86_64::match_haystack_unordered_insensitive::<W>(self.needle_cased, haystack)
+                    #[cfg(target_feature = "avx2")]
+                    return x86_64::match_haystack_unordered_insensitive_avx2(
+                        self.needle_avx2.as_ref().unwrap(),
+                        haystack,
+                    );
+                    #[cfg(not(target_feature = "avx2"))]
+                    return x86_64::match_haystack_unordered_insensitive(
+                        self.needle_cased,
+                        haystack,
+                    );
                 }
-                (false, false, true) => x86_64::match_haystack_unordered_typos_insensitive::<W>(
-                    self.needle_cased,
+                (false, false, true) => x86_64::match_haystack_unordered_typos_insensitive(
+                    &self.needle_cased,
                     haystack,
                     self.max_typos,
                 ),
@@ -246,9 +263,9 @@ mod tests {
     use super::Prefilter;
 
     /// Ensures both the ordered and unordered implementations return the same result
-    fn match_haystack<const W: usize>(needle: &str, haystack: &str) -> bool {
-        let ordered = match_haystack_generic::<W, true, true>(needle, haystack, 0);
-        let unordered = match_haystack_generic::<W, false, true>(needle, haystack, 0);
+    fn match_haystack(needle: &str, haystack: &str) -> bool {
+        let ordered = match_haystack_generic::<true, true>(needle, haystack, 0);
+        let unordered = match_haystack_generic::<false, true>(needle, haystack, 0);
         assert_eq!(
             ordered, unordered,
             "ordered and unordered implementations produced different results for {needle} on {haystack}"
@@ -256,9 +273,9 @@ mod tests {
         ordered
     }
 
-    fn match_haystack_insensitive<const W: usize>(needle: &str, haystack: &str) -> bool {
-        let ordered = match_haystack_generic::<W, true, false>(needle, haystack, 0);
-        let unordered = match_haystack_generic::<W, false, false>(needle, haystack, 0);
+    fn match_haystack_insensitive(needle: &str, haystack: &str) -> bool {
+        let ordered = match_haystack_generic::<true, false>(needle, haystack, 0);
+        let unordered = match_haystack_generic::<false, false>(needle, haystack, 0);
         assert_eq!(
             ordered, unordered,
             "ordered and unordered implementations produced different results for {needle} on {haystack}"
@@ -266,81 +283,77 @@ mod tests {
         ordered
     }
 
-    fn match_haystack_ordered<const W: usize>(needle: &str, haystack: &str) -> bool {
-        match_haystack_generic::<W, true, true>(needle, haystack, 0)
+    fn match_haystack_ordered(needle: &str, haystack: &str) -> bool {
+        match_haystack_generic::<true, true>(needle, haystack, 0)
     }
 
-    fn match_haystack_unordered<const W: usize>(needle: &str, haystack: &str) -> bool {
-        match_haystack_generic::<W, false, true>(needle, haystack, 0)
+    fn match_haystack_unordered(needle: &str, haystack: &str) -> bool {
+        match_haystack_generic::<false, true>(needle, haystack, 0)
     }
 
-    fn match_haystack_unordered_typos<const W: usize>(
+    fn match_haystack_unordered_typos(needle: &str, haystack: &str, max_typos: u16) -> bool {
+        match_haystack_generic::<false, true>(needle, haystack, max_typos)
+    }
+
+    fn match_haystack_unordered_typos_insensitive(
         needle: &str,
         haystack: &str,
         max_typos: u16,
     ) -> bool {
-        match_haystack_generic::<W, false, true>(needle, haystack, max_typos)
-    }
-
-    fn match_haystack_unordered_typos_insensitive<const W: usize>(
-        needle: &str,
-        haystack: &str,
-        max_typos: u16,
-    ) -> bool {
-        match_haystack_generic::<W, false, false>(needle, haystack, max_typos)
+        match_haystack_generic::<false, false>(needle, haystack, max_typos)
     }
 
     #[test]
     fn test_exact_match() {
-        assert!(match_haystack::<16>("foo", "foo"));
-        assert!(match_haystack::<16>("a", "a"));
-        assert!(match_haystack::<16>("hello", "hello"));
+        assert!(match_haystack("foo", "foo"));
+        assert!(match_haystack("a", "a"));
+        assert!(match_haystack("hello", "hello"));
     }
 
     #[test]
     fn test_fuzzy_match_with_gaps() {
-        assert!(match_haystack::<16>("foo", "f_o_o"));
-        assert!(match_haystack::<16>("foo", "f__o__o"));
-        assert!(match_haystack::<16>("abc", "a_b_c"));
-        assert!(match_haystack::<16>("test", "t_e_s_t"));
+        assert!(match_haystack("foo", "f_o_o"));
+        assert!(match_haystack("foo", "f__o__o"));
+        assert!(match_haystack("abc", "a_b_c"));
+        assert!(match_haystack("test", "t_e_s_t"));
     }
 
     #[test]
     fn test_unordered_within_chunk() {
-        assert!(match_haystack_unordered::<16>("foo", "oof"));
-        assert!(!match_haystack_ordered::<16>("foo", "oof"));
+        assert!(match_haystack_unordered("foo", "oof"));
+        assert!(!match_haystack_ordered("foo", "oof"));
 
-        assert!(match_haystack_unordered::<16>("abc", "cba"));
-        assert!(!match_haystack_ordered::<16>("abc", "cba"));
+        assert!(match_haystack_unordered("abc", "cba"));
+        assert!(!match_haystack_ordered("abc", "cba"));
 
-        assert!(match_haystack_unordered::<16>("test", "tset"));
-        assert!(!match_haystack_ordered::<16>("test", "tset"));
+        assert!(match_haystack_unordered("test", "tset"));
+        assert!(!match_haystack_ordered("test", "tset"));
 
-        assert!(match_haystack_unordered::<16>("hello", "olleh"));
-        assert!(!match_haystack_ordered::<16>("hello", "olleh"));
+        assert!(match_haystack_unordered("hello", "olleh"));
+        assert!(!match_haystack_ordered("hello", "olleh"));
     }
 
     #[test]
     fn test_case_sensitivity() {
-        assert!(!match_haystack::<16>("foo", "FOO"));
-        assert!(match_haystack_insensitive::<16>("foo", "FOO"));
+        assert!(!match_haystack("foo", "FOO"));
+        assert!(match_haystack_insensitive("foo", "FOO"));
 
-        assert!(!match_haystack::<16>("Foo", "foo"));
-        assert!(match_haystack_insensitive::<16>("Foo", "foo"));
+        assert!(!match_haystack("Foo", "foo"));
+        assert!(match_haystack_insensitive("Foo", "foo"));
 
-        assert!(!match_haystack::<16>("ABC", "abc"));
-        assert!(match_haystack_insensitive::<16>("ABC", "abc"));
+        assert!(!match_haystack("ABC", "abc"));
+        assert!(match_haystack_insensitive("ABC", "abc"));
     }
 
     #[test]
     fn test_chunk_boundary() {
         // Characters must be within same 16-byte chunk
-        let haystack = "oo______________f"; // 'f' is at position 16 (17th byte)
-        assert!(!match_haystack::<16>("foo", haystack));
+        let haystack = "oo_______________f"; // 'f' is at position 17 (18th byte)
+        assert!(!match_haystack("foo", haystack));
 
         // But if all within one chunk, should work
         let haystack = "oof_____________"; // All within first 16 bytes
-        assert!(match_haystack_unordered::<16>("foo", haystack));
+        assert!(match_haystack_unordered("foo", haystack));
     }
 
     #[ignore = "overlapping loads are not yet masked on the ordered implementation"]
@@ -348,7 +361,7 @@ mod tests {
     fn test_overlapping_load() {
         // Because we load the last 16 bytes of the haystack in the final iteration,
         // when the haystack.len() % 16 != 0, we end up matching on the 'o' twice
-        assert!(!match_haystack_ordered::<48>(
+        assert!(!match_haystack_ordered(
             "foo",
             "f_________________________o______"
         ));
@@ -356,11 +369,8 @@ mod tests {
 
     #[test]
     fn test_multiple_chunks() {
-        assert!(match_haystack::<48>(
-            "foo",
-            "f_______________o_______________o"
-        ));
-        assert!(match_haystack::<48>(
+        assert!(match_haystack("foo", "f_______________o_______________o"));
+        assert!(match_haystack(
             "abc",
             "a_______________b_______________c_______________"
         ));
@@ -368,50 +378,44 @@ mod tests {
 
     #[test]
     fn test_partial_matches() {
-        assert!(!match_haystack::<16>("fob", "fo"));
-        assert!(!match_haystack::<16>("test", "tet"));
-        assert!(!match_haystack::<16>("abc", "a"));
+        assert!(!match_haystack("fob", "fo"));
+        assert!(!match_haystack("test", "tet"));
+        assert!(!match_haystack("abc", "a"));
     }
 
     #[test]
     fn test_duplicate_characters_in_needle() {
-        assert!(match_haystack::<16>("foo", "foo"));
-        assert!(match_haystack_unordered::<16>("foo", "ofo"));
-        assert!(match_haystack_unordered::<16>("foo", "fo")); // Missing one 'o'
+        assert!(match_haystack("foo", "foo"));
+        assert!(match_haystack_unordered("foo", "ofo"));
+        assert!(match_haystack_unordered("foo", "fo")); // Missing one 'o'
 
-        assert!(match_haystack_unordered::<16>("aaa", "aaa"));
-        assert!(match_haystack_unordered::<16>("aaa", "aa"));
+        assert!(match_haystack_unordered("aaa", "aaa"));
+        assert!(match_haystack_unordered("aaa", "aa"));
     }
 
     #[test]
     fn test_haystack_with_extra_characters() {
-        assert!(match_haystack::<16>("foo", "foobar"));
-        assert!(match_haystack::<16>("foo", "prefoobar"));
-        assert!(match_haystack::<16>("abc", "xaxbxcx"));
+        assert!(match_haystack("foo", "foobar"));
+        assert!(match_haystack("foo", "prefoobar"));
+        assert!(match_haystack("abc", "xaxbxcx"));
     }
 
     #[test]
     fn test_edge_cases_at_16_byte_boundary() {
         let haystack = "123456789012345f"; // 'f' at position 15 (last position in chunk)
-        assert!(match_haystack::<16>("f", haystack));
+        assert!(match_haystack("f", haystack));
 
         let haystack = "o_______________of"; // Two 'o's in first chunk, 'f' in second
-        assert!(!match_haystack::<16>("foo", haystack));
+        assert!(!match_haystack_ordered("foo", haystack));
+        assert!(match_haystack_unordered("foo", haystack));
     }
 
     #[test]
     #[should_panic]
     fn test_invalid_width_limit_panic() {
         // When W > 16, the function should panic when haystack.len() < 16
-        assert!(match_haystack::<32>("abc", "cba"));
-        assert!(match_haystack::<64>("abc", "cba"));
-    }
-
-    #[test]
-    fn test_width_limit() {
-        let haystack = "a_______________b_______________c";
-        assert!(!match_haystack::<16>("abc", haystack));
-        assert!(match_haystack::<48>("abc", haystack));
+        assert!(match_haystack("abc", "cba"));
+        assert!(match_haystack("abc", "cba"));
     }
 
     #[test]
@@ -419,96 +423,90 @@ mod tests {
         // The function uses overlapping loads, so test edge cases
         // where characters might be found in overlapping regions
         let haystack = "_______________fo"; // 'f' at position 15, 'o' at position 16
-        assert!(match_haystack::<32>("fo", haystack));
+        assert!(match_haystack("fo", haystack));
     }
 
     #[test]
     fn test_single_character_needle() {
         // Single character needles
-        assert!(match_haystack::<16>("a", "a"));
-        assert!(match_haystack::<16>("a", "ba"));
-        assert!(match_haystack::<16>("a", "_______________a"));
-        assert!(!match_haystack::<16>("a", ""));
+        assert!(match_haystack("a", "a"));
+        assert!(match_haystack("a", "ba"));
+        assert!(match_haystack("a", "_______________a"));
+        assert!(!match_haystack("a", ""));
     }
 
     #[test]
     fn test_repeated_character_haystack() {
         // Haystack with repeated characters
-        assert!(match_haystack::<16>("abc", "aaabbbccc"));
-        assert!(match_haystack::<16>("foo", "fofofoooo"));
+        assert!(match_haystack("abc", "aaabbbccc"));
+        assert!(match_haystack("foo", "fofofoooo"));
     }
 
     #[test]
     fn test_typos_single_missing_character() {
         // One character missing from haystack
-        assert!(match_haystack_unordered_typos::<16>("bar", "ba", 1));
-        assert!(match_haystack_unordered_typos::<16>("bar", "ar", 1));
-        assert!(match_haystack_unordered_typos::<16>("hello", "hllo", 1));
-        assert!(match_haystack_unordered_typos::<16>("test", "tst", 1));
+        assert!(match_haystack_unordered_typos("bar", "ba", 1));
+        assert!(match_haystack_unordered_typos("bar", "ar", 1));
+        assert!(match_haystack_unordered_typos("hello", "hllo", 1));
+        assert!(match_haystack_unordered_typos("test", "tst", 1));
 
         // Should fail with 0 typos allowed
-        assert!(!match_haystack_unordered_typos::<16>("bar", "ba", 0));
-        assert!(!match_haystack_unordered_typos::<16>("hello", "hllo", 0));
+        assert!(!match_haystack_unordered_typos("bar", "ba", 0));
+        assert!(!match_haystack_unordered_typos("hello", "hllo", 0));
     }
 
     #[test]
     fn test_typos_multiple_missing_characters() {
-        assert!(match_haystack_unordered_typos::<16>("hello", "hll", 2));
-        assert!(match_haystack_unordered_typos::<16>("testing", "tstng", 2));
-        assert!(match_haystack_unordered_typos::<16>("abcdef", "abdf", 2));
+        assert!(match_haystack_unordered_typos("hello", "hll", 2));
+        assert!(match_haystack_unordered_typos("testing", "tstng", 2));
+        assert!(match_haystack_unordered_typos("abcdef", "abdf", 2));
 
-        assert!(!match_haystack_unordered_typos::<16>("hello", "hll", 1));
-        assert!(!match_haystack_unordered_typos::<16>("testing", "tstng", 1));
+        assert!(!match_haystack_unordered_typos("hello", "hll", 1));
+        assert!(!match_haystack_unordered_typos("testing", "tstng", 1));
     }
 
     #[test]
     fn test_typos_with_gaps() {
-        assert!(match_haystack_unordered_typos::<16>("bar", "b_r", 1));
-        assert!(match_haystack_unordered_typos::<16>("test", "t__s_t", 1));
-        assert!(match_haystack_unordered_typos::<16>("helo", "h_l_", 2));
+        assert!(match_haystack_unordered_typos("bar", "b_r", 1));
+        assert!(match_haystack_unordered_typos("test", "t__s_t", 1));
+        assert!(match_haystack_unordered_typos("helo", "h_l_", 2));
     }
 
     #[test]
     fn test_typos_unordered_permutations() {
-        assert!(match_haystack_unordered_typos::<16>("bar", "rb", 1));
-        assert!(match_haystack_unordered_typos::<16>("abcdef", "fcda", 2));
+        assert!(match_haystack_unordered_typos("bar", "rb", 1));
+        assert!(match_haystack_unordered_typos("abcdef", "fcda", 2));
     }
 
     #[test]
     fn test_typos_case_insensitive() {
         // Case insensitive with typos
-        assert!(match_haystack_unordered_typos_insensitive::<16>(
-            "BAR", "ba", 1
-        ));
-        assert!(match_haystack_unordered_typos_insensitive::<16>(
+        assert!(match_haystack_unordered_typos_insensitive("BAR", "ba", 1));
+        assert!(match_haystack_unordered_typos_insensitive(
             "Hello", "HLL", 2
         ));
-        assert!(match_haystack_unordered_typos_insensitive::<16>(
-            "TeSt", "ES", 2
-        ));
-        assert!(!match_haystack_unordered_typos_insensitive::<16>(
-            "TeSt", "ES", 1
-        ));
+        assert!(match_haystack_unordered_typos_insensitive("TeSt", "ES", 2));
+        assert!(!match_haystack_unordered_typos_insensitive("TeSt", "ES", 1));
     }
 
     #[test]
     fn test_typos_edge_cases() {
         // All characters missing (typos == needle length)
-        assert!(match_haystack_unordered_typos::<16>("abc", "", 3));
+        assert!(match_haystack_unordered_typos("abc", "", 3));
 
         // More typos allowed than necessary
-        assert!(match_haystack_unordered_typos::<16>("foo", "fo", 5));
+        assert!(match_haystack_unordered_typos("foo", "fo", 5));
     }
 
     #[test]
     fn test_typos_across_chunks() {
-        assert!(match_haystack_unordered_typos::<48>(
+        assert!(match_haystack_unordered_typos(
             "abc",
             "a_______________b",
             1
         ));
 
-        assert!(match_haystack_unordered_typos::<48>(
+        assert!(match_haystack_unordered_typos(
             "test",
             "t_______________s_______________t",
             1
@@ -517,9 +515,9 @@ mod tests {
 
     #[test]
     fn test_typos_single_character_needle() {
-        assert!(match_haystack_unordered_typos::<16>("a", "a", 0));
-        assert!(match_haystack_unordered_typos::<16>("a", "", 1));
-        assert!(!match_haystack_unordered_typos::<16>("a", "", 0));
+        assert!(match_haystack_unordered_typos("a", "a", 0));
+        assert!(match_haystack_unordered_typos("a", "", 1));
+        assert!(!match_haystack_unordered_typos("a", "", 0));
     }
 
     fn normalize_haystack(haystack: &str) -> String {
@@ -530,17 +528,14 @@ mod tests {
         }
     }
 
-    fn match_haystack_generic<const W: usize, const ORDERED: bool, const CASE_SENSITIVE: bool>(
+    fn match_haystack_generic<const ORDERED: bool, const CASE_SENSITIVE: bool>(
         needle: &str,
         haystack: &str,
         max_typos: u16,
     ) -> bool {
-        let needle_cased = Prefilter::<W>::case_needle(needle);
-        let needle = needle.as_bytes();
+        let prefilter = Prefilter::new(needle, max_typos);
         let haystack = normalize_haystack(haystack);
         let haystack = haystack.as_bytes();
-
-        let prefilter = Prefilter::<W>::new(needle, &needle_cased, max_typos);
 
         if max_typos > 0 {
             let typo_result =

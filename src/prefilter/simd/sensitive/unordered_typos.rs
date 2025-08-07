@@ -1,12 +1,8 @@
 use super::super::overlapping_load;
-use std::simd::{cmp::SimdPartialEq, Simd};
+use std::simd::{Simd, cmp::SimdPartialEq};
 
 #[inline(always)]
-pub fn match_haystack_unordered_typos<const W: usize>(
-    needle: &[u8],
-    haystack: &[u8],
-    max_typos: u16,
-) -> bool {
+pub fn match_haystack_unordered_typos(needle: &[u8], haystack: &[u8], max_typos: u16) -> bool {
     let len = haystack.len();
 
     let mut needle_iter = needle.iter().map(|&c| Simd::<u8, 16>::splat(c));
@@ -22,8 +18,8 @@ pub fn match_haystack_unordered_typos<const W: usize>(
         // we would only scan from the third chunk onwards for the next needle. Technically,
         // we should scan from the beginning of the haystack instead, but I believe the
         // previous memchr implementation had the same bug.
-        for start in (0..W).step_by(16) {
-            let haystack_chunk = overlapping_load::<W>(haystack, start, len);
+        for start in (0..len).step_by(16) {
+            let haystack_chunk = overlapping_load(haystack, start, len);
 
             loop {
                 if haystack_chunk.simd_eq(needle_char).any() {

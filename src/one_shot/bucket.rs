@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::prefilter::Prefilter;
 use crate::smith_waterman::simd::{smith_waterman, typos_from_score_matrix};
 use crate::{Config, Match, Scoring};
 
@@ -18,13 +17,12 @@ pub(crate) struct FixedWidthBucket<'a, const W: usize, M: Appendable<Match>> {
 
     max_typos: Option<u16>,
     scoring: Scoring,
-    prefilter: Option<Prefilter<'a, W>>,
 
     _phantom: PhantomData<M>,
 }
 
 impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
-    pub fn new(needle: &'a str, needle_cased: &'a [(u8, u8)], config: &Config) -> Self {
+    pub fn new(needle: &'a str, config: &Config) -> Self {
         FixedWidthBucket {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             has_avx512: is_x86_feature_detected!("avx512f")
@@ -44,24 +42,12 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 
             max_typos: config.max_typos,
             scoring: config.scoring.clone(),
-            prefilter: (config.prefilter && config.max_typos.is_some()).then_some(Prefilter::new(
-                needle.as_bytes(),
-                needle_cased,
-                config.max_typos.unwrap_or(0),
-            )),
 
             _phantom: PhantomData,
         }
     }
 
     pub fn add_haystack(&mut self, matches: &mut M, haystack: &'a str, idx: u32) {
-        // Fast prefilter
-        if let Some(prefilter) = &self.prefilter
-            && !prefilter.match_haystack_unordered_insensitive(haystack.as_bytes())
-        {
-            return;
-        }
-
         self.haystacks[self.length] = haystack;
         self.idxs[self.length] = idx;
         self.length += 1;
@@ -102,10 +88,10 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
             .map(|max_typos| typos_from_score_matrix::<W, L>(&score_matrix, max_typos));
 
         for idx in 0..self.length {
-            if let Some(max_typos) = self.max_typos {
-                if typos.is_some_and(|typos| typos[idx] > max_typos) {
-                    continue;
-                }
+            if let Some(max_typos) = self.max_typos
+                && typos.is_some_and(|typos| typos[idx] > max_typos)
+            {
+                continue;
             }
 
             let score_idx = self.idxs[idx];

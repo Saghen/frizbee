@@ -133,10 +133,9 @@ fn choose_thread_count(haystacks_len: usize, max_typos: Option<u16>) -> usize {
     // length of the needle. Perhaps random sampling would work well?
     let min_items_per_thread = match max_typos {
         Some(0) => 5000,
-        // Slower prefilter makes is ~2x slower than no typos
-        Some(1) => 3000,
-        // Slower than ignoring typos since we need to perform backtracking
-        Some(_) => 2000,
+        // Slower prefilter
+        Some(1) => 4000,
+        Some(_) => 3000,
         None => 2500,
     };
 

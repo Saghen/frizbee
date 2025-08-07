@@ -13,10 +13,7 @@ use std::arch::x86_64::*;
 /// When W <= 16, the caller must ensure that the minimum length of the haystack is >= 8.
 /// In all cases, the caller must ensure the needle.len() > 0 and that SSE2 is available.
 #[inline(always)]
-pub unsafe fn match_haystack_insensitive<const W: usize>(
-    needle: &[(u8, u8)],
-    haystack: &[u8],
-) -> bool {
+pub unsafe fn match_haystack_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -> bool {
     let len = haystack.len();
 
     let mut needle_iter = needle
@@ -24,12 +21,12 @@ pub unsafe fn match_haystack_insensitive<const W: usize>(
         .map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
     let mut needle_char = needle_iter.next().unwrap();
 
-    for start in (0..W).step_by(16) {
+    for start in (0..len).step_by(16) {
         if start >= haystack.len() {
             return false;
         }
 
-        let haystack_chunk = unsafe { overlapping_load::<W>(haystack, start, len) };
+        let haystack_chunk = unsafe { overlapping_load(haystack, start, len) };
 
         let mut last_match_idx = None;
         loop {

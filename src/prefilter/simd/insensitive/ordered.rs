@@ -1,8 +1,8 @@
 use super::super::overlapping_load;
-use std::simd::{cmp::SimdPartialEq, Simd};
+use std::simd::{Simd, cmp::SimdPartialEq};
 
 #[inline(always)]
-pub fn match_haystack_insensitive<const W: usize>(needle: &[(u8, u8)], haystack: &[u8]) -> bool {
+pub fn match_haystack_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -> bool {
     let len = haystack.len();
 
     let mut needle_iter = needle
@@ -10,8 +10,8 @@ pub fn match_haystack_insensitive<const W: usize>(needle: &[(u8, u8)], haystack:
         .map(|&(c1, c2)| (Simd::splat(c1), Simd::splat(c2)));
     let mut needle_char = needle_iter.next().unwrap();
 
-    for start in (0..W).step_by(16) {
-        let haystack_chunk = overlapping_load::<W>(haystack, start, len);
+    for start in (0..len).step_by(16) {
+        let haystack_chunk = overlapping_load(haystack, start, len);
 
         let mut last_match_idx = None;
         loop {
