@@ -28,7 +28,6 @@ pub struct Prefilter {
 
     has_sse2: bool,
     has_avx2: bool,
-    has_neon: bool,
 }
 
 impl Prefilter {
@@ -44,11 +43,6 @@ impl Prefilter {
         #[cfg(not(target_arch = "x86_64"))]
         let has_avx2 = false;
 
-        #[cfg(target_arch = "aarch64")]
-        let has_neon = true;
-        #[cfg(not(target_arch = "aarch64"))]
-        let has_neon = false;
-
         let needle_cased = Self::case_needle(needle);
         Prefilter {
             needle: needle.to_string(),
@@ -60,7 +54,6 @@ impl Prefilter {
 
             has_sse2,
             has_avx2,
-            has_neon,
         }
     }
 
@@ -113,18 +106,14 @@ impl Prefilter {
             _ => {}
         }
 
-        match (self.has_avx2, self.has_sse2, self.has_neon) {
+        match (self.has_avx2, self.has_sse2) {
             #[cfg(target_arch = "x86_64")]
-            (true, _, _) => unsafe {
+            (true, _) => unsafe {
                 self.match_haystack_avx2::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
             },
             #[cfg(target_arch = "x86_64")]
-            (_, true, _) => unsafe {
+            (_, true) => unsafe {
                 self.match_haystack_sse2::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
-            },
-            #[cfg(target_arch = "aarch64")]
-            (_, _, true) => unsafe {
-                self.match_haystack_neon::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
             },
             _ => self.match_haystack_simd::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack),
         }
@@ -232,19 +221,6 @@ impl Prefilter {
                 }
             }
         }
-    }
-
-    #[cfg(target_arch = "aarch64")]
-    #[target_feature(enable = "neon")]
-    unsafe fn match_haystack_neon<
-        const ORDERED: bool,
-        const CASE_SENSITIVE: bool,
-        const TYPOS: bool,
-    >(
-        &self,
-        haystack: &[u8],
-    ) -> bool {
-        self.match_haystack_simd::<ORDERED, CASE_SENSITIVE, TYPOS>(haystack)
     }
 
     #[cfg(target_arch = "x86_64")]
