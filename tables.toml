@@ -31,6 +31,18 @@ NOTE: The nucleo parallel benchmark is not included since I haven't discovered a
 
 [table_comments]
 
+chromium = """
+List of all file paths in the chromium repository, with a median length of 67 characters.
+```rust
+needle: "linux"
+match_percentage: 0.08
+partial_match_percentage: unknown
+median_length: 67
+std_dev_length: unknown
+num_samples: 1406941
+```
+"""
+
 partial_match = """
 What I would consider the typical case, where 5% of the haystack matches the needle and 20% of the haystack includes characters from the needle, but doesn't fully match.
 
