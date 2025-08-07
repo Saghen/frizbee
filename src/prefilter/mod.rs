@@ -207,22 +207,29 @@ impl Prefilter {
                 ),
                 (false, false, false) => {
                     if AVX2 {
-                        return x86_64::match_haystack_unordered_insensitive_avx2(
+                        x86_64::match_haystack_unordered_insensitive_avx2(
                             self.needle_avx2.as_ref().unwrap(),
                             haystack,
-                        );
+                        )
                     } else {
-                        return x86_64::match_haystack_unordered_insensitive(
-                            &self.needle_cased,
-                            haystack,
-                        );
+                        x86_64::match_haystack_unordered_insensitive(&self.needle_cased, haystack)
                     }
                 }
-                (false, false, true) => x86_64::match_haystack_unordered_typos_insensitive(
-                    &self.needle_cased,
-                    haystack,
-                    self.max_typos,
-                ),
+                (false, false, true) => {
+                    if AVX2 {
+                        x86_64::match_haystack_unordered_typos_insensitive_avx2(
+                            self.needle_avx2.as_ref().unwrap(),
+                            haystack,
+                            self.max_typos,
+                        )
+                    } else {
+                        x86_64::match_haystack_unordered_typos_insensitive(
+                            &self.needle_cased,
+                            haystack,
+                            self.max_typos,
+                        )
+                    }
+                }
             }
         }
     }

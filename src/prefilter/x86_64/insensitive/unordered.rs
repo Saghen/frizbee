@@ -71,6 +71,9 @@ pub unsafe fn match_haystack_unordered_insensitive_avx2(
         let haystack_chunk = unsafe { overlapping_load(haystack, start, len) };
         let haystack_chunk = unsafe { _mm256_broadcastsi128_si256(haystack_chunk) };
 
+        // For AVX2, we store the uppercase in the first 16 bytes, and the lowercase in the
+        // last 16 bytes. This allows us to compare the uppercase and lowercase versions of
+        // the needle char in the same comparison.
         loop {
             if unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(needle_char, haystack_chunk)) } == 0
             {
