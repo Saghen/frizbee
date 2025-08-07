@@ -1,5 +1,6 @@
 mod bucket;
-mod bucket_collection;
+mod interleave;
 mod matcher;
+mod prefilter;
 
-pub use matcher::IncrementalMatcher;
+pub use matcher::Matcher;
