@@ -67,13 +67,19 @@ pub fn match_list_bench(c: &mut criterion::Criterion, name: &str, needle: &str, 
         haystack,
         |b, haystack| b.iter(|| match_list(needle, haystack, Some(0))),
     );
+
+    let mut matcher = frizbee::Matcher::new(haystack);
+    group.bench_function(
+        BenchmarkId::new("Frizbee Incremental", median_length),
+        |b| b.iter(|| matcher.match_needle(needle, frizbee::Config::default())),
+    );
     group.bench_with_input(
-        BenchmarkId::new("Frizbee: All Scores", median_length),
+        BenchmarkId::new("Frizbee All Scores", median_length),
         haystack,
         |b, haystack| b.iter(|| match_list(needle, haystack, None)),
     );
     group.bench_with_input(
-        BenchmarkId::new("Frizbee: 1 Typo", median_length),
+        BenchmarkId::new("Frizbee 1 Typo", median_length),
         haystack,
         |b, haystack| b.iter(|| match_list(needle, haystack, Some(1))),
     );
@@ -85,7 +91,7 @@ pub fn match_list_bench(c: &mut criterion::Criterion, name: &str, needle: &str, 
         |b, haystack| b.iter(|| match_list_parallel(needle, haystack, Some(0), 8)),
     );
     group.bench_with_input(
-        BenchmarkId::new("Frizbee: All Scores (Parallel)", median_length),
+        BenchmarkId::new("Frizbee All Scores (Parallel)", median_length),
         haystack,
         |b, haystack| b.iter(|| match_list_parallel(needle, haystack, None, 8)),
     );

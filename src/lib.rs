@@ -2,6 +2,7 @@
 #![feature(avx512_target_feature)]
 #![feature(portable_simd)]
 #![feature(get_mut_unchecked)]
+#![feature(iter_array_chunks)]
 
 use std::cmp::Ordering;
 
@@ -14,7 +15,7 @@ mod one_shot;
 pub mod prefilter;
 pub mod smith_waterman;
 
-pub use incremental::IncrementalMatcher;
+pub use incremental::Matcher;
 pub use one_shot::{match_indices, match_list, match_list_parallel};
 
 use r#const::*;
