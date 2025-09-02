@@ -52,6 +52,7 @@ fn run_prefilter_bench<const W: usize>(c: &mut criterion::Criterion, needle: &st
     group.bench_function("simd/insensitive", |b| {
         b.iter(|| simd::match_haystack_insensitive(needle_cased, haystack))
     });
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("x86_64/insensitive", |b| {
         b.iter(|| unsafe {
             frizbee::prefilter::x86_64::match_haystack_insensitive(needle_cased, haystack)

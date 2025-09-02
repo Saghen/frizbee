@@ -13,7 +13,7 @@ use crate::{Config, MatchIndices};
 pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystack: S2,
-    config: Config,
+    config: &Config,
 ) -> Option<MatchIndices> {
     let needle = needle.as_ref();
     let haystack = haystack.as_ref();

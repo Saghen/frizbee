@@ -19,7 +19,7 @@ use threaded_vec::ThreadedVec;
 pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
     haystacks: &[S2],
-    config: Config,
+    config: &Config,
     max_threads: usize,
 ) -> Vec<Match> {
     let thread_count = choose_thread_count(haystacks.len(), config.max_typos).clamp(1, max_threads);
@@ -28,8 +28,8 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     }
 
     let mut matches = match config.max_typos {
-        None => match_list_parallel_fixed(needle, haystacks, config.clone(), thread_count),
-        _ => match_list_parallel_expandable(needle, haystacks, config.clone(), thread_count),
+        None => match_list_parallel_fixed(needle, haystacks, config, thread_count),
+        _ => match_list_parallel_expandable(needle, haystacks, config, thread_count),
     };
 
     if config.sort {
@@ -50,7 +50,7 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
     haystacks: &[S2],
-    config: Config,
+    config: &Config,
     thread_count: usize,
 ) -> Vec<Match> {
     assert!(config.max_typos.is_none(), "max_typos must be None");
@@ -79,7 +79,7 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
                     needle,
                     haystacks,
                     (thread_idx * items_per_thread) as u32,
-                    opts,
+                    &opts,
                     &mut thread_slice,
                 )
             });
@@ -97,7 +97,7 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
     needle: S1,
     haystacks: &[S2],
-    config: Config,
+    config: &Config,
     thread_count: usize,
 ) -> Vec<Match> {
     assert!(config.max_typos.is_some(), "max_typos must be Some");
@@ -118,7 +118,7 @@ fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
                     needle,
                     haystacks,
                     (thread_idx * items_per_thread) as u32,
-                    opts,
+                    &opts,
                     &mut matches,
                 )
             });

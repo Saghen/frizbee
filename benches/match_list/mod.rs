@@ -95,7 +95,7 @@ fn match_list(needle: &str, haystack: &[&str], max_typos: Option<u16>) -> Vec<fr
     frizbee::match_list(
         black_box(needle),
         black_box(haystack),
-        black_box(frizbee::Config {
+        black_box(&frizbee::Config {
             max_typos,
             ..Default::default()
         }),
@@ -111,7 +111,7 @@ fn match_list_parallel(
     frizbee::match_list_parallel(
         black_box(needle),
         black_box(haystack),
-        frizbee::Config {
+        &frizbee::Config {
             max_typos,
             ..Default::default()
         },
