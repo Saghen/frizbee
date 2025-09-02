@@ -14,7 +14,7 @@ use crate::{Config, Match};
 pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
     needle: S1,
     haystacks: &[S2],
-    config: Config,
+    config: &Config,
 ) -> Vec<Match> {
     let mut matches = if config.max_typos.is_none() {
         Vec::with_capacity(haystacks.len())
@@ -22,7 +22,7 @@ pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
         vec![]
     };
 
-    match_list_impl(needle, haystacks, 0, config.clone(), &mut matches);
+    match_list_impl(needle, haystacks, 0, config, &mut matches);
 
     if config.sort {
         #[cfg(feature = "parallel_sort")]
@@ -41,7 +41,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
     needle: S1,
     haystacks: &[S2],
     index_offset: u32,
-    config: Config,
+    config: &Config,
     matches: &mut M,
 ) {
     assert!(
@@ -177,7 +177,7 @@ mod tests {
             max_typos: None,
             ..Config::default()
         };
-        let matches = match_list(needle, &haystack, config);
+        let matches = match_list(needle, &haystack, &config);
 
         assert_eq!(matches.len(), 4);
         assert_eq!(matches[0].index, 3);
@@ -194,7 +194,7 @@ mod tests {
         let matches = match_list(
             needle,
             &haystack,
-            Config {
+            &Config {
                 max_typos: Some(0),
                 ..Config::default()
             },
@@ -207,7 +207,7 @@ mod tests {
         let needle = "deadbe";
         let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe"];
 
-        let matches = match_list(needle, &haystack, Config::default());
+        let matches = match_list(needle, &haystack, &Config::default());
 
         let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
         assert_eq!(exact_matches.len(), 1);
@@ -230,7 +230,7 @@ mod tests {
             "deadbe",
         ];
 
-        let matches = match_list(needle, &haystack, Config::default());
+        let matches = match_list(needle, &haystack, &Config::default());
 
         let exact_matches = matches.iter().filter(|m| m.exact).collect::<Vec<&Match>>();
         assert_eq!(exact_matches.len(), 4);

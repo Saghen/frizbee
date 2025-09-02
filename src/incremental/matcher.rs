@@ -86,7 +86,7 @@ impl IncrementalMatcher {
         }
     }
 
-    pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, config: Config) -> Vec<Match> {
+    pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, config: &Config) -> Vec<Match> {
         let needle = needle.as_ref();
         if needle.is_empty() {
             todo!();
@@ -107,7 +107,7 @@ impl IncrementalMatcher {
             })
             .unwrap_or(0);
 
-        self.process(common_prefix_len, needle, &mut matches, config.clone());
+        self.process(common_prefix_len, needle, &mut matches, &config);
         self.needle = Some(needle.to_owned());
 
         if config.sort {
@@ -122,7 +122,7 @@ impl IncrementalMatcher {
         prefix_to_keep: usize,
         needle: &str,
         matches: &mut Vec<Match>,
-        config: Config,
+        config: &Config,
     ) {
         let needle = &needle.as_bytes()[prefix_to_keep..];
 
@@ -147,7 +147,7 @@ mod tests {
 
     fn get_score(needle: &str, haystack: &str) -> u16 {
         let mut matcher = IncrementalMatcher::new(&[haystack]);
-        matcher.match_needle(needle, Config::default())[0].score
+        matcher.match_needle(needle, &Config::default())[0].score
     }
 
     #[test]
