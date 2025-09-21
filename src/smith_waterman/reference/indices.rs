@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 pub fn char_indices_from_score_matrix(score_matrix: &[&[u16]]) -> Vec<usize> {
-    if score_matrix.is_empty() {
+    if score_matrix.is_empty() || score_matrix[0].is_empty() {
         return vec![];
     }
 
