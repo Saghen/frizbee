@@ -22,6 +22,8 @@ harness = false
 
 [lib]
 bench = false
+name = "frizbee"
+crate-type=["cdylib", "rlib"]
 
 # [[bench]]
 # name = "smith_waterman_iai"
