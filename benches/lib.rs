@@ -1,5 +1,4 @@
 #![feature(portable_simd)]
-#![feature(array_repeat)]
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::time::Duration;

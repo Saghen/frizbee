@@ -5,7 +5,6 @@ use crate::{Config, Match};
 
 pub struct Matcher {
     needle: Option<String>,
-    num_haystacks: usize,
 
     bucket_size_8: IncrementalBucket<8>,
     bucket_size_12: IncrementalBucket<12>,
@@ -26,11 +25,11 @@ pub struct Matcher {
 }
 
 impl Matcher {
-    pub fn new<S: AsRef<str>>(haystacks: &[S]) -> Self {
+    pub fn new<S: AsRef<str> + Ord + Clone>(haystacks: &[S]) -> Self {
+        let mut haystacks = haystacks.iter().collect::<Vec<_>>();
+        haystacks.sort();
+
         // group haystacks into buckets by length
-
-        // TODO: prefiltering? If yes, then haystacks can't be put into buckets yet
-
         let mut bucket_size_8 = IncrementalBucket::<8>::new();
         let mut bucket_size_12 = IncrementalBucket::<12>::new();
         let mut bucket_size_16 = IncrementalBucket::<16>::new();
@@ -75,7 +74,6 @@ impl Matcher {
 
         Self {
             needle: None,
-            num_haystacks: haystacks.len(),
 
             bucket_size_8,
             bucket_size_12,
@@ -96,6 +94,27 @@ impl Matcher {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.needle = None;
+
+        self.bucket_size_8.reset();
+        self.bucket_size_12.reset();
+        self.bucket_size_16.reset();
+        self.bucket_size_20.reset();
+        self.bucket_size_24.reset();
+        self.bucket_size_32.reset();
+        self.bucket_size_48.reset();
+        self.bucket_size_64.reset();
+        self.bucket_size_96.reset();
+        self.bucket_size_128.reset();
+        self.bucket_size_160.reset();
+        self.bucket_size_192.reset();
+        self.bucket_size_224.reset();
+        self.bucket_size_256.reset();
+        self.bucket_size_384.reset();
+        self.bucket_size_512.reset();
+    }
+
     pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, config: Config) -> Vec<Match> {
         let needle = needle.as_ref();
         if needle.is_empty() {
@@ -104,20 +123,25 @@ impl Matcher {
 
         let mut matches = vec![];
 
-        // let common_prefix_len = self
-        //     .needle
-        //     .as_ref()
-        //     .map(|prev_needle| {
-        //         needle
-        //             .as_bytes()
-        //             .iter()
-        //             .zip(prev_needle.as_bytes())
-        //             .take_while(|&(&a, &b)| a == b)
-        //             .count()
-        //     })
-        //     .unwrap_or(0);
+        let common_prefix_len = self
+            .needle
+            .as_ref()
+            .map(|prev_needle| {
+                needle
+                    .as_bytes()
+                    .iter()
+                    .zip(prev_needle.as_bytes())
+                    .take_while(|&(&a, &b)| a == b)
+                    .count()
+            })
+            .unwrap_or(0);
 
-        self.process(0, needle.as_bytes(), &mut matches, config.clone());
+        self.process(
+            common_prefix_len,
+            &needle.as_bytes()[common_prefix_len..],
+            &mut matches,
+            config.clone(),
+        );
         self.needle = Some(needle.to_owned());
 
         if config.sort {
@@ -134,38 +158,118 @@ impl Matcher {
         matches: &mut Vec<Match>,
         config: Config,
     ) {
-        self.bucket_size_8
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_12
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_16
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_20
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_24
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_32
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_48
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_64
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_96
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_128
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_160
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_192
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_224
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_256
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_384
-            .process(common_prefix_len, needle, matches, &config.scoring);
-        self.bucket_size_512
-            .process(common_prefix_len, needle, matches, &config.scoring);
+        self.bucket_size_8.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_12.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_16.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_20.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_24.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_32.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_48.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_64.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_96.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_128.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_160.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_192.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_224.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_256.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_384.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
+        self.bucket_size_512.process(
+            common_prefix_len,
+            needle,
+            matches,
+            &config.scoring,
+            config.max_typos,
+        );
     }
 }
 
